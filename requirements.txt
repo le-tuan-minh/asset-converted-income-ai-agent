@@ -1,0 +1,9 @@
+langgraph
+langchain
+langchain-groq
+easyocr
+pdf2image
+Pillow
+python-dotenv
+pydantic
+pypdf
