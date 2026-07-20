@@ -10,9 +10,17 @@ gửi lên Groq LLM để:
     Thông tư 08/2024/TT-BTNMT) và diện tích, đặc biệt xác định đất TMDV có
     thuộc dự án được phê duyệt hay không (nếu căn cứ có sẵn ngay trong hồ sơ)
 
-Sau khi LLM trả JSON, có thêm bước rule-based cross-check (nodes/land_rules.py)
-để giảm rủi ro LLM bỏ sót/nhận định sai loại đất TMDV — nguyên tắc: rule-based
-chỉ được phép làm hệ thống THẬN TRỌNG HƠN, không tự ý hạ thấp rủi ro.
+Sau khi LLM trả JSON, có thêm 2 bước rule-based cross-check:
+  1. TMDV cross-check (nodes/land_rules.py) — giảm rủi ro LLM bỏ sót/nhận định sai
+     loại đất TMDV.
+  2. Diện tích cross-check (_cross_check_dien_tich) — đối soát tổng diện tích các
+     thành phần (đất ở + nông nghiệp + TMDV) với dien_tich_tong trên GCN, phát hiện
+     trường hợp LLM bỏ sót một loại đất phụ (vd đất nuôi trồng thủy sản, đất trồng lúa)
+     khi gộp vào dien_tich_nn.
+
+Nguyên tắc chung cho cả 2 bước: rule-based chỉ được phép làm hệ thống THẬN TRỌNG HƠN
+(tăng cảnh báo/giữ giá trị an toàn), KHÔNG được tự ý sửa số liệu hay hạ thấp rủi ro
+so với kết quả LLM.
 """
 from __future__ import annotations
 import json
@@ -103,7 +111,7 @@ Hãy trích xuất và trả về JSON với cấu trúc sau:
     "dien_tich_tong": "Tổng diện tích m2",
     "dien_tich_dat_o": "Diện tích đất ở (ODT/ONT) m2",
     "dien_tich_nha_o": "Diện tích nhà ở m2",
-    "dien_tich_nn": "Diện tích nông nghiệp m2",
+    "dien_tich_nn": "TỔNG diện tích m2 của TẤT CẢ các loại đất nông nghiệp cộng lại: đất trồng cây lâu năm (CLN), đất trồng lúa (LUC/LUK), đất nuôi trồng thủy sản (NTS), đất nông nghiệp khác (NKH), v.v. Nếu mục 'Loại đất' trên GCN liệt kê NHIỀU loại đất nông nghiệp khác nhau (vd vừa 'đất trồng cây lâu năm' vừa 'đất nuôi trồng thủy sản'), PHẢI cộng gộp diện tích của TẤT CẢ các loại đó vào đây, TUYỆT ĐỐI KHÔNG được chỉ lấy loại đầu tiên hoặc bỏ sót loại nào.",
     "dien_tich_tmdv": "Diện tích đất thương mại, dịch vụ (TMD) m2",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
@@ -147,6 +155,13 @@ Lưu ý quan trọng:
 - asset_info.dia_chi_tai_san là địa chỉ CỦA THỬA ĐẤT (trong mục "Thửa đất" trên GCN), khác hoàn
   toàn với owner_info.dia_chi_thuong_tru (địa chỉ thường trú của chủ sở hữu) — không được lấy
   nhầm 2 trường này của nhau.
+- QUAN TRỌNG VỀ DIỆN TÍCH: mục "Loại đất" trên GCN có thể liệt kê nhiều loại đất khác nhau
+  trên CÙNG một thửa (vd "Đất ở tại nông thôn 400 m²; Đất trồng cây lâu năm 9.112 m²; Đất nuôi
+  trồng thủy sản 500 m²"). Phải phân loại và CỘNG GỘP đúng từng nhóm: đất ở (ODT/ONT) vào
+  dien_tich_dat_o, TẤT CẢ các loại đất nông nghiệp (cây lâu năm, lúa, thủy sản, khác...) cộng
+  chung vào dien_tich_nn, đất TMD vào dien_tich_tmdv. Tổng dien_tich_dat_o + dien_tich_nn +
+  dien_tich_tmdv phải BẰNG dien_tich_tong (không tính dien_tich_nha_o vào tổng này vì đó là
+  diện tích xây dựng, không phải diện tích đất). Tự kiểm tra lại phép cộng trước khi trả JSON.
 
 QUY TẮC XÁC ĐỊNH is_tmdv (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT, KHÔNG SUY DIỄN):
 - is_tmdv = true CHỈ KHI văn bản ghi rõ mục đích sử dụng đất là "đất thương mại, dịch vụ"
@@ -329,12 +344,117 @@ def _cross_check_tmdv_rule_based(
     return land_purpose, asset_info
 
 
+def _to_float_area(value: str) -> float | None:
+    """
+    Parse chuỗi diện tích tiếng Việt về float, hỗ trợ các định dạng phổ biến:
+      "10012", "10012.5", "10.012" (dấu chấm phân cách nghìn), "10,012.5" (US style).
+    Trả về None nếu không parse được hoặc chuỗi rỗng.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    # Bỏ mọi ký tự không phải số/dấu phân cách (vd "m2", khoảng trắng)
+    s = re.sub(r"[^0-9.,]", "", s)
+    if not s:
+        return None
+
+    try:
+        if "," in s and "." in s:
+            # Dấu xuất hiện sau cùng là phân cách thập phân
+            if s.rfind(",") > s.rfind("."):
+                s = s.replace(".", "").replace(",", ".")
+            else:
+                s = s.replace(",", "")
+        elif "," in s:
+            # Chỉ có dấu phẩy: coi là phân cách thập phân kiểu VN
+            s = s.replace(",", ".")
+        elif s.count(".") > 1:
+            # Nhiều dấu chấm → phân cách nghìn kiểu VN (vd "10.012")
+            s = s.replace(".", "")
+        elif "." in s:
+            # Một dấu chấm: nếu phần sau có đúng 3 chữ số VÀ phần nguyên đã có số
+            # → nhiều khả năng là phân cách nghìn ("10.012" = 10012), không phải thập phân.
+            integer_part, _, decimal_part = s.partition(".")
+            if len(decimal_part) == 3 and integer_part:
+                s = s.replace(".", "")
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _cross_check_dien_tich(
+    asset_info: AssetInfo,
+    flags: list[FlagItem],
+    notes: list[str],
+) -> None:
+    """
+    Rule-based cross-check: đối soát tổng diện tích các thành phần đất
+    (dien_tich_dat_o + dien_tich_nn + dien_tich_tmdv) với dien_tich_tong trên GCN.
+
+    KHÔNG cộng dien_tich_nha_o vào tổng này vì đó là diện tích sàn xây dựng
+    (một đại lượng khác bản chất với diện tích đất), không phải một loại đất riêng.
+
+    Đây là phép toán xác định (không cần LLM suy luận), dùng làm lưới an toàn để
+    bắt các trường hợp LLM bỏ sót một loại đất phụ khi gộp vào dien_tich_nn (vd bỏ
+    sót "đất nuôi trồng thủy sản" khi GCN liệt kê nhiều loại đất nông nghiệp).
+    Chỉ cảnh báo, KHÔNG tự động sửa số liệu — vì hệ thống không biết thiếu ở đâu.
+    """
+    tong = _to_float_area(asset_info.dien_tich_tong)
+    if tong is None or tong <= 0:
+        notes.append(
+            "[B2] Bỏ qua cross-check diện tích: không parse được dien_tich_tong "
+            f"('{asset_info.dien_tich_tong}')."
+        )
+        return
+
+    dat_o = _to_float_area(asset_info.dien_tich_dat_o) or 0.0
+    nn = _to_float_area(asset_info.dien_tich_nn) or 0.0
+    tmdv = _to_float_area(asset_info.dien_tich_tmdv) or 0.0
+    thanh_phan = dat_o + nn + tmdv
+
+    # Sai số cho phép do làm tròn số liệu trong văn bản gốc
+    TOLERANCE_M2 = 1.0
+    lech = tong - thanh_phan
+
+    if abs(lech) > TOLERANCE_M2:
+        flags.append(FlagItem(
+            flag_type="OCR_THIEU_DU_LIEU",
+            severity="WARNING",
+            description=(
+                f"Tổng diện tích các loại đất extract được (đất ở {dat_o:.0f} + "
+                f"nông nghiệp {nn:.0f} + TMDV {tmdv:.0f} = {thanh_phan:.0f} m²) "
+                f"KHÔNG khớp diện tích tổng ghi trên GCN ({tong:.0f} m²), "
+                f"chênh lệch {lech:+.0f} m². Nhiều khả năng LLM đã bỏ sót một loại đất "
+                "phụ (vd đất nuôi trồng thủy sản, đất trồng lúa, đất nông nghiệp khác...) "
+                "khi gộp vào dien_tich_nn. Cần cán bộ tín dụng đối chiếu lại mục 'Loại đất' "
+                "trên bản gốc GCN trước khi dùng dien_tich_du_dieu_kien để tính giá trị TSBĐ."
+            ),
+            affected_field="asset_info.dien_tich_dat_o / dien_tich_nn / dien_tich_tmdv",
+        ))
+        notes.append(
+            f"[B2] Cross-check diện tích: LỆCH {lech:+.0f} m² so với dien_tich_tong "
+            f"(tổng={tong:.0f}, thành_phần={thanh_phan:.0f})."
+        )
+        print(
+            f"[B2] ⚠️ Cross-check diện tích lệch: tổng GCN={tong:.0f} m² "
+            f"vs thành phần extract={thanh_phan:.0f} m² (chênh {lech:+.0f} m²)"
+        )
+    else:
+        notes.append(
+            f"[B2] Cross-check diện tích: khớp (tổng={tong:.0f} m², "
+            f"thành_phần={thanh_phan:.0f} m²)."
+        )
+        print(f"[B2] ✅ Cross-check diện tích khớp: {thanh_phan:.0f}/{tong:.0f} m²")
+
+
 def node_b2_verify(state: GraphState) -> GraphState:
     """
     LangGraph node B2.
     Gom OCR text theo nhóm nghiệp vụ, gửi lên Groq LLM, nhận lại structured JSON,
-    parse thành domain models, chạy rule-based cross-check cho đất TMDV, và lưu
-    vào state.
+    parse thành domain models, chạy rule-based cross-check (TMDV + diện tích), và
+    lưu vào state.
     """
     print("\n" + "=" * 60)
     print("B2 · VERIFY NODE — Gửi OCR text (đã gom nhóm) lên Groq LLM")
@@ -416,6 +536,9 @@ def node_b2_verify(state: GraphState) -> GraphState:
     land_purpose, asset_info = _cross_check_tmdv_rule_based(
         land_purpose, asset_info, grouped, flags, notes,
     )
+
+    # ── Rule-based cross-check cho tổng diện tích (bắt lỗi LLM bỏ sót loại đất phụ) ──
+    _cross_check_dien_tich(asset_info, flags, notes)
 
     notes.append("B2 hoàn thành: LLM extract thành công.")
     print(
