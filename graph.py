@@ -1,8 +1,12 @@
 """
-LangGraph Graph definition cho luồng thẩm định tín dụng B1 → B2 → B3.
+LangGraph Graph definition cho luồng thẩm định tín dụng B1 → B2 → B2c → B3.
 
 Luồng:
-  START → b1_input → b2_verify → b3_flag → (router) → human_review | END
+  START → b1_input → b2_verify → b2c_tmdv_websearch → b3_flag → (router) → human_review | END
+
+  b2c_tmdv_websearch là bước bổ sung: chỉ thực sự tra cứu web khi B2 (kể cả sau
+  rule-based cross-check) vẫn chưa xác định được đất TMDV có thuộc dự án hay không.
+  Các trường hợp khác, node này pass-through gần như tức thời (không tốn API call).
 
 Lưu ý LangGraph:
   - .invoke() với Pydantic BaseModel state trả về dict (không phải model instance)
@@ -16,6 +20,7 @@ from langgraph.graph import StateGraph, END
 from schemas import GraphState
 from nodes.node_b1_input import node_b1_input
 from nodes.node_b2_verify import node_b2_verify
+from nodes.node_b2c_tmdv_websearch import node_b2c_tmdv_websearch
 from nodes.node_b3_flag import node_b3_flag
 
 
@@ -61,15 +66,17 @@ def build_graph() -> StateGraph:
     builder = StateGraph(GraphState)
 
     # Thêm nodes
-    builder.add_node("b1_input",     node_b1_input)
-    builder.add_node("b2_verify",    node_b2_verify)
-    builder.add_node("b3_flag",      node_b3_flag)
-    builder.add_node("human_review", node_human_review)
+    builder.add_node("b1_input",            node_b1_input)
+    builder.add_node("b2_verify",           node_b2_verify)
+    builder.add_node("b2c_tmdv_websearch",  node_b2c_tmdv_websearch)
+    builder.add_node("b3_flag",             node_b3_flag)
+    builder.add_node("human_review",        node_human_review)
 
     # Edges tuyến tính
     builder.set_entry_point("b1_input")
-    builder.add_edge("b1_input",  "b2_verify")
-    builder.add_edge("b2_verify", "b3_flag")
+    builder.add_edge("b1_input",           "b2_verify")
+    builder.add_edge("b2_verify",          "b2c_tmdv_websearch")
+    builder.add_edge("b2c_tmdv_websearch", "b3_flag")
 
     # Conditional edge sau B3
     builder.add_conditional_edges(

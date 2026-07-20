@@ -7,3 +7,4 @@ Pillow
 python-dotenv
 pydantic
 pypdf
+tavily-python

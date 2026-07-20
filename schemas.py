@@ -78,6 +78,8 @@ class AssetInfo(BaseModel):
     ngay_cap_gcn: str = ""
     ngay_chuyen_nhuong: str = ""
     muc_dich_su_dung: str = ""  # Đất ở / Nhà ở / NN / TMDV
+    ma_ky_hieu_dat: str = ""    # Mã ký hiệu loại đất theo Thông tư 08/2024/TT-BTNMT (vd: TMD, ODT, ONT, SKC...)
+    dia_chi_tai_san: str = ""   # Địa chỉ/vị trí thửa đất (thửa số, tờ BĐ, xã/phường, quận/huyện, tỉnh/TP) ghi trên GCN
     dien_tich_tong: str = ""
     dien_tich_dat_o: str = ""
     dien_tich_nha_o: str = ""
@@ -85,6 +87,8 @@ class AssetInfo(BaseModel):
     dien_tich_tmdv: str = ""
     co_thong_tin_tang_cho: bool = False
     thuoc_du_an: Optional[bool] = None  # Chỉ set khi là TMDV
+    ten_du_an: str = ""                 # Tên dự án đầu tư nếu hồ sơ có nêu rõ
+    can_cu_phap_ly_du_an: str = ""      # Số + ngày QĐ phê duyệt dự án/chủ trương đầu tư nếu có
     nguon_goc_tai_san: str = ""         # Ngày hình thành (mua / cấp / tặng cho)
 
 
@@ -102,9 +106,20 @@ class IdentityCheckResult(BaseModel):
 class LandPurposeResult(BaseModel):
     """Kết quả phân loại mục đích sử dụng đất."""
     muc_dich: str = ""
+    ma_ky_hieu_dat: str = ""            # Mã ký hiệu loại đất (TMD/ODT/ONT/SKC/...)
     dien_tich_du_dieu_kien: str = ""    # Diện tích được dùng để tính giá trị BĐS
     is_tmdv: bool = False
     thuoc_du_an: Optional[bool] = None
+    ten_du_an: str = ""                 # Tên dự án nếu is_tmdv=True và thuoc_du_an=True
+    can_cu_phap_ly_du_an: str = ""      # Số/ngày QĐ phê duyệt dự án (nếu có trong hồ sơ)
+    nguon_xac_dinh_du_an: Literal[
+        "ho_so_noi_bo",       # LLM xác định trực tiếp từ text OCR trong hồ sơ
+        "rule_based_signal",  # Rule-based tìm thấy tín hiệu nhưng chưa đủ khẳng định
+        "web_search",         # Xác định qua bước tra cứu web bổ sung (Tavily)
+        "chua_xac_dinh",      # Chưa có căn cứ nào, kể cả sau khi đã thử web search
+    ] = "chua_xac_dinh"
+    web_verification_sources: list[str] = Field(default_factory=list)  # URL nguồn đã tra cứu (audit trail)
+    web_verification_summary: str = ""  # Tóm tắt lý do LLM kết luận, kèm trích dẫn nguồn
     warning_tmdv: str = ""
 
 
@@ -115,6 +130,9 @@ class FlagItem(BaseModel):
         "TANG_CHO_THUA_KE",
         "TAI_SAN_MOI_HINH_THANH",
         "TMDV_NGOAI_DU_AN",
+        "TMDV_KHONG_KHOP_RULE_BASED",
+        "TMDV_CAN_XAC_MINH_THU_CONG",
+        "TMDV_DU_AN_XAC_MINH_WEB",
         "OCR_THIEU_DU_LIEU",
         "PHAN_LOAI_GIAY_TO_KHONG_XAC_DINH",
     ]
