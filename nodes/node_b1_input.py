@@ -1,80 +1,160 @@
 """
 B1 - Input Node
-Nhận đường dẫn 3 file, chạy EasyOCR, lưu raw text vào GraphState.
+Nhận folder_path chứa số lượng file bất kỳ (pdf/ảnh), với từng file:
+  1. Hybrid extract text (native text layer nếu có, fallback OCR nếu không).
+  2. Phân loại loại giấy tờ (rule-based, fallback LLM).
+Lưu kết quả vào state.documents.
 """
 from __future__ import annotations
-from pathlib import Path
 
-from schemas import GraphState, OcrRawResult, FlagItem
-from ocr_utils import ocr_file
+from schemas import GraphState, DocumentItem, DocumentType, FlagItem, DOCUMENT_CATEGORY_MAP
+from ocr_utils import list_input_files, extract_text_hybrid
+from nodes.document_classifier import classify_document
+
+MIN_CHARS_WARNING_THRESHOLD = 50
 
 
 def node_b1_input(state: GraphState) -> GraphState:
     """
     LangGraph node B1.
-    Input : state với cccd_path, gcn_path, hop_dong_path
-    Output: state với ocr_raw được điền đầy đủ
+    Input : state với input_folder
+    Output: state với documents được điền đầy đủ (text + doc_type)
     """
-    print("\n" + "="*60)
-    print("B1 · INPUT NODE — Đang chạy OCR trên 3 file đầu vào")
-    print("="*60)
+    print("\n" + "=" * 60)
+    print("B1 · INPUT NODE — OCR (hybrid) + phân loại giấy tờ")
+    print("=" * 60)
 
-    updates: dict = {}
     flags = list(state.flags)
     notes = list(state.processing_notes)
+    documents: list[DocumentItem] = []
 
-    # Helper: OCR một file, bắt lỗi gracefully
-    def safe_ocr(path_str: str, label: str) -> str:
-        path = Path(path_str)
-        if not path.exists():
-            msg = f"[B1] Không tìm thấy file {label}: {path}"
-            print(msg)
-            flags.append(FlagItem(
-                flag_type="OCR_THIEU_DU_LIEU",
-                severity="ERROR",
-                description=f"File không tồn tại: {path}",
-                affected_field=label,
-            ))
-            return ""
+    # ── Liệt kê file trong folder ───────────────────────────────
+    try:
+        file_paths = list_input_files(state.input_folder)
+    except FileNotFoundError as exc:
+        msg = f"[B1] {exc}"
+        print(msg)
+        flags.append(FlagItem(
+            flag_type="OCR_THIEU_DU_LIEU",
+            severity="ERROR",
+            description=str(exc),
+            affected_field="input_folder",
+        ))
+        notes.append(msg)
+        return state.model_copy(update={
+            "flags": flags,
+            "processing_notes": notes,
+            "error": str(exc),
+        })
+
+    if not file_paths:
+        msg = f"[B1] Folder '{state.input_folder}' không có file hợp lệ (pdf/ảnh)."
+        print(msg)
+        flags.append(FlagItem(
+            flag_type="OCR_THIEU_DU_LIEU",
+            severity="ERROR",
+            description=msg,
+            affected_field="input_folder",
+        ))
+        notes.append(msg)
+        return state.model_copy(update={"flags": flags, "processing_notes": notes})
+
+    print(f"[B1] Tìm thấy {len(file_paths)} file trong '{state.input_folder}'.")
+
+    # ── Xử lý từng file: hybrid extract + classify ──────────────
+    for path in file_paths:
+        print(f"\n[B1] --- Xử lý: {path.name} ---")
+
+        # 1) Hybrid text extraction
         try:
-            print(f"[B1] OCR {label}: {path.name}")
-            text = ocr_file(path)
-            char_count = len(text)
-            print(f"[B1] {label} — nhận dạng được {char_count} ký tự")
-            if char_count < 50:
-                flags.append(FlagItem(
-                    flag_type="OCR_THIEU_DU_LIEU",
-                    severity="WARNING",
-                    description=f"OCR {label} trả về ít ký tự ({char_count}). Có thể ảnh mờ hoặc scan kém.",
-                    affected_field=label,
-                ))
-            return text
+            text, source = extract_text_hybrid(path)
         except Exception as exc:
-            msg = f"[B1] Lỗi OCR {label}: {exc}"
+            msg = f"[B1] Lỗi extract text {path.name}: {exc}"
             print(msg)
             flags.append(FlagItem(
                 flag_type="OCR_THIEU_DU_LIEU",
                 severity="ERROR",
                 description=str(exc),
-                affected_field=label,
+                affected_field=path.name,
             ))
-            return ""
+            documents.append(DocumentItem(
+                path=str(path), filename=path.name,
+                doc_type=DocumentType.KHONG_XAC_DINH,
+                extraction_source="", raw_text="", char_count=0,
+            ))
+            continue
 
-    cccd_text    = safe_ocr(state.cccd_path,     "CCCD")
-    gcn_text     = safe_ocr(state.gcn_path,      "GCN")
-    hop_dong_text = safe_ocr(state.hop_dong_path, "HopDong")
+        char_count = len(text)
+        print(f"[B1] {path.name}: {char_count} ký tự (source={source})")
 
-    ocr_raw = OcrRawResult(
-        cccd_text=cccd_text,
-        gcn_text=gcn_text,
-        hop_dong_text=hop_dong_text,
+        if char_count < MIN_CHARS_WARNING_THRESHOLD:
+            flags.append(FlagItem(
+                flag_type="OCR_THIEU_DU_LIEU",
+                severity="WARNING",
+                description=(
+                    f"Extract '{path.name}' trả về ít ký tự ({char_count}). "
+                    "Có thể ảnh mờ, scan kém, hoặc file trống."
+                ),
+                affected_field=path.name,
+            ))
+
+        # 2) Phân loại giấy tờ
+        doc_type, confidence, method = classify_document(text, filename=path.name)
+        print(f"[B1] {path.name}: phân loại = {doc_type.value} "
+              f"(confidence={confidence:.2f}, method={method})")
+
+        if doc_type == DocumentType.KHONG_XAC_DINH:
+            flags.append(FlagItem(
+                flag_type="PHAN_LOAI_GIAY_TO_KHONG_XAC_DINH",
+                severity="WARNING",
+                description=(
+                    f"Không xác định được loại giấy tờ cho file '{path.name}'. "
+                    "Cần cán bộ tín dụng phân loại thủ công."
+                ),
+                affected_field=path.name,
+            ))
+
+        documents.append(DocumentItem(
+            path=str(path),
+            filename=path.name,
+            doc_type=doc_type,
+            classify_method=method,
+            classify_confidence=confidence,
+            extraction_source=source,
+            raw_text=text,
+            char_count=char_count,
+        ))
+
+    # ── Kiểm tra các nhóm giấy tờ bắt buộc đã có đủ chưa ────────
+    categories_present = {
+        DOCUMENT_CATEGORY_MAP[d.doc_type] for d in documents
+    }
+    if "nhan_than" not in categories_present:
+        flags.append(FlagItem(
+            flag_type="OCR_THIEU_DU_LIEU",
+            severity="ERROR",
+            description="Hồ sơ thiếu giấy tờ nhân thân (CCCD/CMTND) để đối chiếu chủ tài sản.",
+            affected_field="nhan_than",
+        ))
+    if "gcn" not in categories_present and "chuyen_nhuong" not in categories_present:
+        flags.append(FlagItem(
+            flag_type="OCR_THIEU_DU_LIEU",
+            severity="ERROR",
+            description=(
+                "Hồ sơ thiếu Giấy chứng nhận QSDĐ hoặc văn bản chuyển nhượng "
+                "để xác định tài sản."
+            ),
+            affected_field="gcn_hoac_chuyen_nhuong",
+        ))
+
+    notes.append(
+        f"B1 hoàn thành: {len(documents)} file, "
+        f"nhóm giấy tờ có mặt: {sorted(categories_present)}."
     )
-
-    notes.append("B1 hoàn thành: OCR 3 file xong.")
-    print("[B1] Hoàn thành.\n")
+    print(f"\n[B1] Hoàn thành. {len(documents)} document(s) đã xử lý.\n")
 
     return state.model_copy(update={
-        "ocr_raw": ocr_raw,
+        "documents": documents,
         "flags": flags,
         "processing_notes": notes,
     })

@@ -1,0 +1,97 @@
+{
+  "input_folder": "input_data/test_input_1",
+  "documents": [
+    {
+      "path": "input_data\\test_input_1\\cccd_kh.jpg",
+      "filename": "cccd_kh.jpg",
+      "doc_type": "CCCD",
+      "classify_method": "rule",
+      "classify_confidence": 1.0,
+      "extraction_source": "ocr",
+      "char_count": 488
+    },
+    {
+      "path": "input_data\\test_input_1\\giay_chung_nhan.pdf",
+      "filename": "giay_chung_nhan.pdf",
+      "doc_type": "GCN",
+      "classify_method": "rule",
+      "classify_confidence": 1.0,
+      "extraction_source": "native_text",
+      "char_count": 2457
+    },
+    {
+      "path": "input_data\\test_input_1\\hop_dong_mua_ban.pdf",
+      "filename": "hop_dong_mua_ban.pdf",
+      "doc_type": "HOP_DONG_MUA_BAN",
+      "classify_method": "rule",
+      "classify_confidence": 1.0,
+      "extraction_source": "native_text",
+      "char_count": 4157
+    }
+  ],
+  "owner_info": {
+    "ho_ten": "NGUYỄN MINH TUÁN",
+    "so_cccd": "578302649171",
+    "so_cmtnd_cu": "",
+    "ngay_sinh": "15/02/1990",
+    "dia_chi_thuong_tru": "16/4/3, Hoàng Quốc Việt, Phù Ninh, Phú Thọ"
+  },
+  "asset_info": {
+    "so_gcn": "CH 123456",
+    "chu_su_dung_goc": "Nguyễn Văn A, Nguyễn Thị B",
+    "chu_su_dung_hien_tai": "Nguyễn Minh Tuấn",
+    "bien_dong_lich_su": [
+      {
+        "ngay": "08/07/2026",
+        "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn, sinh năm 1990; CCCD số: 025090012345",
+        "chu_moi": "Nguyễn Minh Tuấn"
+      }
+    ],
+    "ngay_cap_gcn": "12/04/2025",
+    "ngay_chuyen_nhuong": "08/07/2026",
+    "muc_dich_su_dung": "Đất ở",
+    "dien_tich_tong": "1.012",
+    "dien_tich_dat_o": "400",
+    "dien_tich_nha_o": "150",
+    "dien_tich_nn": "9.112",
+    "dien_tich_tmdv": "500",
+    "co_thong_tin_tang_cho": false,
+    "thuoc_du_an": null,
+    "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất như giao đất có thu tiền sử dụng đất"
+  },
+  "identity_check": {
+    "owner_matched": true,
+    "matched_against": "chu_hien_tai",
+    "mismatch_fields": [],
+    "is_tang_cho": false,
+    "is_thua_ke": false,
+    "asset_formation_date": "08/07/2026",
+    "asset_formation_note": "Ngày chuyển nhượng gần nhất"
+  },
+  "land_purpose": {
+    "muc_dich": "Đất ở",
+    "dien_tich_du_dieu_kien": "550",
+    "is_tmdv": false,
+    "thuoc_du_an": null,
+    "warning_tmdv": ""
+  },
+  "flags": [
+    {
+      "flag_type": "TAI_SAN_MOI_HINH_THANH",
+      "severity": "WARNING",
+      "description": "Tài sản hình thành ngày 08/07/2026 (0 tháng trước). Cần làm rõ nguồn gốc tiền hình thành tài sản.",
+      "affected_field": "asset_formation_date"
+    }
+  ],
+  "warnings": [
+    "⚠️ TÀI SẢN MỚI HÌNH THÀNH (0 tháng): 08/07/2026. Cần làm rõ nguồn gốc vốn mua tài sản trong 2 năm gần nhất."
+  ],
+  "has_critical_flags": false,
+  "processing_notes": [
+    "B1 hoàn thành: 3 file, nhóm giấy tờ có mặt: ['chuyen_nhuong', 'gcn', 'nhan_than'].",
+    "B2 hoàn thành: LLM extract thành công.",
+    "Diện tích đủ điều kiện quy đổi: 550",
+    "B3 hoàn thành: 1 flag(s), 1 cảnh báo."
+  ],
+  "error": null
+}

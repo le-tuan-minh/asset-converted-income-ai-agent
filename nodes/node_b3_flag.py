@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from schemas import GraphState, FlagItem
+from nodes.document_classifier import _strip_accents
 
 
 def _parse_date(date_str: str) -> date | None:
@@ -70,22 +71,35 @@ def node_b3_flag(state: GraphState) -> GraphState:
         print("[B3] ✅ Chủ tài sản khớp CCCD.")
 
     # ── Rule 2: Tặng cho / Thừa kế ──────────────────────────────
-    if ic.is_tang_cho or ic.is_thua_ke or ai.co_thong_tin_tang_cho:
-        loai = "tặng cho" if ic.is_tang_cho else "thừa kế"
+    bien_dong_tang_cho = [
+        bd for bd in ai.bien_dong_lich_su
+        if any(kw in _strip_accents(bd.noi_dung) for kw in ("TANG CHO", "CHO TANG"))
+    ]
+    bien_dong_thua_ke = [
+        bd for bd in ai.bien_dong_lich_su
+        if any(kw in _strip_accents(bd.noi_dung) for kw in ("THUA KE", "DI CHUC"))
+    ]
+
+    if ic.is_tang_cho or ic.is_thua_ke or ai.co_thong_tin_tang_cho or bien_dong_tang_cho or bien_dong_thua_ke:
+        loai = "tặng cho" if (ic.is_tang_cho or bien_dong_tang_cho) else "thừa kế"
+        nguon_dien_giai = ""
+        if bien_dong_tang_cho or bien_dong_thua_ke:
+            bd = (bien_dong_tang_cho or bien_dong_thua_ke)[0]
+            nguon_dien_giai = f" (theo biến động ngày {bd.ngay or 'N/A'}: {bd.noi_dung})"
         flags.append(FlagItem(
             flag_type="TANG_CHO_THUA_KE",
             severity="WARNING",
             description=(
-                f"Tài sản có nguồn gốc {loai}. "
+                f"Tài sản có nguồn gốc {loai}{nguon_dien_giai}. "
                 "Loại khỏi tài sản quy đổi, chỉ dùng tính thanh lý."
             ),
-            affected_field="nguon_goc_tai_san",
+            affected_field="nguon_goc_tai_san / bien_dong_lich_su",
         ))
         warnings.append(
             f"⚠️ TÀI SẢN {loai.upper()}: Không được dùng làm tài sản quy đổi. "
             "Chỉ tính vào tài sản thanh lý."
         )
-        print(f"[B3] ⚠️ Flag: TANG_CHO_THUA_KE — {loai}")
+        print(f"[B3] ⚠️ Flag: TANG_CHO_THUA_KE — {loai}{nguon_dien_giai}")
 
     # ── Rule 3: Tài sản mới hình thành trong 2 năm gần nhất ─────
     formation_date = _parse_date(ic.asset_formation_date)
