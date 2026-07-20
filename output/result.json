@@ -20,13 +20,13 @@
       "char_count": 2458
     },
     {
-      "path": "input_data\\test_input_1\\hop_dong_mua_ban.pdf",
-      "filename": "hop_dong_mua_ban.pdf",
+      "path": "input_data\\test_input_1\\hop_dong_mua_ban-v2.pdf",
+      "filename": "hop_dong_mua_ban-v2.pdf",
       "doc_type": "HOP_DONG_MUA_BAN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 4157
+      "char_count": 4158
     }
   ],
   "owner_info": {
@@ -51,17 +51,17 @@
     "ngay_chuyen_nhuong": "08/07/2026",
     "muc_dich_su_dung": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
     "ma_ky_hieu_dat": "",
-    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội",
-    "dien_tich_tong": "1012",
+    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội; Thửa đất số: 0000; Tờ bản đồ số: 01",
+    "dien_tich_tong": "10012",
     "dien_tich_dat_o": "400",
     "dien_tich_nha_o": "150",
-    "dien_tich_nn": "9612",
+    "dien_tich_nn": "9112",
     "dien_tich_tmdv": "0",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
     "ten_du_an": "",
     "can_cu_phap_ly_du_an": "",
-    "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất"
+    "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất như giao đất có thu tiền sử dụng đất; Nhà nước công nhận quyền sử dụng đất như giao đất không thu tiền sử dụng đất"
   },
   "identity_check": {
     "owner_matched": true,
