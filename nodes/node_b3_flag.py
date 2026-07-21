@@ -4,6 +4,8 @@ Rule-based engine dựa trên kết quả từ B2:
   1. Flag tài sản không trùng chủ
   2. Flag tài sản tặng cho / thừa kế
   3. Cảnh báo tài sản mới hình thành > 70% trong 2 năm gần nhất
+     (kể cả trường hợp KHÔNG xác định được ngày hình thành — vẫn phải cảnh báo,
+     không được xử lý im lặng, vì đây là rủi ro chưa loại trừ được)
   4. Cảnh báo đất TMDV không thuộc dự án
   5. Xác định diện tích đủ điều kiện quy đổi
 """
@@ -125,7 +127,24 @@ def node_b3_flag(state: GraphState) -> GraphState:
         else:
             print(f"[B3] ✅ Tài sản hình thành {months_old} tháng trước, không cảnh báo.")
     else:
-        print("[B3] ℹ️ Không xác định được ngày hình thành tài sản.")
+        # Không xác định được ngày hình thành = không loại trừ được rủi ro tài
+        # sản mới hình thành < 24 tháng. Trước đây bước này chỉ print() ra console
+        # nên "biến mất" khỏi report/result.json — nay phải cảnh báo tường minh.
+        flags.append(FlagItem(
+            flag_type="NGAY_HINH_THANH_KHONG_XAC_DINH",
+            severity="WARNING",
+            description=(
+                "Không xác định được ngày hình thành tài sản (asset_formation_date trống "
+                "hoặc sai định dạng trong hồ sơ). Không thể loại trừ khả năng tài sản mới "
+                "hình thành trong 2 năm gần nhất — cần cán bộ tín dụng xác minh thủ công."
+            ),
+            affected_field="asset_formation_date",
+        ))
+        warnings.append(
+            "⚠️ KHÔNG XÁC ĐỊNH ĐƯỢC NGÀY HÌNH THÀNH TÀI SẢN: Cần xác minh thủ công "
+            "nguồn gốc/thời điểm hình thành tài sản."
+        )
+        print("[B3] ⚠️ Flag: NGAY_HINH_THANH_KHONG_XAC_DINH — không xác định được ngày hình thành.")
 
     # ── Rule 4: Đất TMDV không thuộc dự án ──────────────────────
     if lp.is_tmdv:

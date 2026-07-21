@@ -74,7 +74,6 @@ class AssetInfo(BaseModel):
     chu_su_dung_goc: str = ""            # Người sử dụng đất/sở hữu GHI NHẬN BAN ĐẦU khi cấp GCN
     chu_su_dung_hien_tai: str = ""       # Chủ sử dụng/sở hữu HIỆN TẠI (sau biến động gần nhất,
                                           # bằng chu_su_dung_goc nếu GCN chưa từng biến động)
-                                          # — trích xuất TỪ GCN.
     bien_dong_lich_su: list[BienDongItem] = Field(default_factory=list)
     ngay_cap_gcn: str = ""
     ngay_chuyen_nhuong: str = ""
@@ -95,9 +94,10 @@ class AssetInfo(BaseModel):
     # ── Trích xuất ĐỘC LẬP từ Nhóm 3 (Hợp đồng mua bán / văn bản chuyển nhượng) ──
     # Các field này PHẢI được LLM đọc trực tiếp từ văn bản hợp đồng/chuyển nhượng,
     # KHÔNG được tự động gán/đồng bộ theo chu_su_dung_hien_tai (vốn lấy từ GCN).
-    # Mục đích: cho phép rule-based cross-check phát hiện trường hợp GCN và Hợp
-    # đồng ghi 2 tên khác nhau (mà nếu chỉ có 1 field duy nhất thì LLM có thể đã
-    # "hoà giải" 2 nguồn với nhau trước khi trả kết quả).
+    # Mục đích: cho phép rule-based cross-check (nodes/identity_rules.py, lớp 2
+    # trong node_b2_verify.py) phát hiện trường hợp GCN và Hợp đồng ghi 2 tên
+    # khác nhau (mà nếu chỉ có 1 field duy nhất thì LLM có thể đã "hoà giải" 2
+    # nguồn với nhau trước khi trả kết quả).
     ben_mua_hop_dong: str = ""            # Tên bên mua/bên nhận chuyển nhượng ghi
                                            # NGUYÊN VĂN trên hợp đồng/văn bản (Nhóm 3)
     ben_mua_so_cccd_hop_dong: str = ""    # Số CCCD/CMTND bên mua ghi trên hợp đồng, nếu có
@@ -143,6 +143,7 @@ class FlagItem(BaseModel):
         "CHU_TAI_SAN_KHONG_DONG_NHAT_GIUA_HO_SO",
         "TANG_CHO_THUA_KE",
         "TAI_SAN_MOI_HINH_THANH",
+        "NGAY_HINH_THANH_KHONG_XAC_DINH",
         "TMDV_NGOAI_DU_AN",
         "TMDV_KHONG_KHOP_RULE_BASED",
         "TMDV_CAN_XAC_MINH_THU_CONG",

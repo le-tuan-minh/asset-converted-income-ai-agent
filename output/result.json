@@ -1,8 +1,8 @@
 {
-  "input_folder": "input_data/test_input_3",
+  "input_folder": "input_data/test_input_1",
   "documents": [
     {
-      "path": "input_data\\test_input_3\\cccd_kh.jpg",
+      "path": "input_data\\test_input_1\\cccd_kh.jpg",
       "filename": "cccd_kh.jpg",
       "doc_type": "CCCD",
       "classify_method": "rule",
@@ -11,7 +11,7 @@
       "char_count": 488
     },
     {
-      "path": "input_data\\test_input_3\\giay_chung_nhan.pdf",
+      "path": "input_data\\test_input_1\\giay_chung_nhan.pdf",
       "filename": "giay_chung_nhan.pdf",
       "doc_type": "GCN",
       "classify_method": "rule",
@@ -20,8 +20,8 @@
       "char_count": 2458
     },
     {
-      "path": "input_data\\test_input_3\\hop_dong_mua_ban_mname.pdf",
-      "filename": "hop_dong_mua_ban_mname.pdf",
+      "path": "input_data\\test_input_1\\hop_dong_mua_ban-v2.pdf",
+      "filename": "hop_dong_mua_ban-v2.pdf",
       "doc_type": "HOP_DONG_MUA_BAN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
@@ -38,49 +38,47 @@
   },
   "asset_info": {
     "so_gcn": "CH 123456",
-    "chu_su_dung_goc": "Ông Nguyễn Văn A, Bà Nguyễn Thị B",
-    "chu_su_dung_hien_tai": "Ông Nguyễn Minh Tuấn",
+    "chu_su_dung_goc": "Nguyễn Văn A, Nguyễn Thị B",
+    "chu_su_dung_hien_tai": "Nguyễn Minh Tuấn",
     "bien_dong_lich_su": [
       {
         "ngay": "08/07/2026",
-        "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn",
-        "chu_moi": "Ông Nguyễn Minh Tuấn"
+        "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn, sinh năm 1990; CCCD số: 025090012345 do Cục Cảnh sát QLHC về trật tự xã hội cấp ngày 12/10/2021; nơi thường trú tại: 16/4/3, Hoàng Quốc Việt, Phù Ninh, Phú Thọ.",
+        "chu_moi": "Nguyễn Minh Tuấn"
       }
     ],
     "ngay_cap_gcn": "12/04/2025",
     "ngay_chuyen_nhuong": "08/07/2026",
-    "muc_dich_su_dung": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
+    "muc_dich_su_dung": "Đất ở tại nông thôn 400 m²; Đất trồng cây lâu năm 9.112 m²; Đất nuôi trồng thủy sản 500 m².",
     "ma_ky_hieu_dat": "",
-    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội",
-    "dien_tich_tong": "10012",
+    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội. Thửa đất số: 0000; Tờ bản đồ số: 01",
+    "dien_tich_tong": "10.012",
     "dien_tich_dat_o": "400",
     "dien_tich_nha_o": "150",
-    "dien_tich_nn": "9112",
+    "dien_tich_nn": "9.612",
     "dien_tich_tmdv": "0",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
     "ten_du_an": "",
     "can_cu_phap_ly_du_an": "",
-    "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất",
-    "ben_mua_hop_dong": "Nguyễn Tuấn Minh",
+    "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất như giao đất có thu tiền sử dụng đất; Đất trồng cây lâu năm, đất nuôi trồng thủy sản: Nhà nước công nhận quyền sử dụng đất như giao đất không thu tiền sử dụng đất.",
+    "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
     "ben_mua_so_cccd_hop_dong": "025090012345",
-    "ben_ban_hop_dong": "Ông Nguyễn Văn A, Bà Nguyễn Thị B"
+    "ben_ban_hop_dong": "Nguyễn Văn A, Nguyễn Thị B"
   },
   "identity_check": {
-    "owner_matched": false,
+    "owner_matched": true,
     "matched_against": "chu_hien_tai",
-    "mismatch_fields": [
-      "ho_ten_hop_dong_vs_gcn"
-    ],
+    "mismatch_fields": [],
     "is_tang_cho": false,
     "is_thua_ke": false,
     "asset_formation_date": "08/07/2026",
-    "asset_formation_note": "Chuyển nhượng từ ông Nguyễn Văn A và bà Nguyễn Thị B"
+    "asset_formation_note": "Ngày chuyển nhượng gần nhất"
   },
   "land_purpose": {
-    "muc_dich": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
+    "muc_dich": "Đất ở tại nông thôn 400 m²; Đất trồng cây lâu năm 9.112 m²; Đất nuôi trồng thủy sản 500 m².",
     "ma_ky_hieu_dat": "",
-    "dien_tich_du_dieu_kien": "550",
+    "dien_tich_du_dieu_kien": "400",
     "is_tmdv": false,
     "thuoc_du_an": null,
     "ten_du_an": "",
@@ -92,18 +90,6 @@
   },
   "flags": [
     {
-      "flag_type": "CHU_TAI_SAN_KHONG_DONG_NHAT_GIUA_HO_SO",
-      "severity": "ERROR",
-      "description": "Tên chủ sử dụng ghi trên GCN (biến động gần nhất: 'Ông Nguyễn Minh Tuấn') KHÔNG khớp với tên bên mua/bên nhận chuyển nhượng ghi trên Hợp đồng mua bán/văn bản chuyển nhượng ('Nguyễn Tuấn Minh') — cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau. Đây là dấu hiệu bất thường nghiêm trọng giữa 2 văn bản trong cùng hồ sơ, cần cán bộ tín dụng đối chiếu bản gốc trước khi phê duyệt.",
-      "affected_field": "asset_info.chu_su_dung_hien_tai / asset_info.ben_mua_hop_dong"
-    },
-    {
-      "flag_type": "CHU_TAI_SAN_LECH",
-      "severity": "ERROR",
-      "description": "Chủ sử dụng trên GCN/Hợp đồng KHÔNG khớp với CCCD khách hàng. Trường lệch: ho_ten_hop_dong_vs_gcn",
-      "affected_field": "ho_ten / so_cccd"
-    },
-    {
       "flag_type": "TAI_SAN_MOI_HINH_THANH",
       "severity": "WARNING",
       "description": "Tài sản hình thành ngày 08/07/2026 (0 tháng trước). Cần làm rõ nguồn gốc tiền hình thành tài sản.",
@@ -111,18 +97,15 @@
     }
   ],
   "warnings": [
-    "⛔ HỒ SƠ KHÔNG ĐỒNG NHẤT: Tên chủ sử dụng trên GCN khác tên bên mua trên Hợp đồng mua bán (cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau). Cần xác minh lại trước khi phê duyệt.",
-    "⛔ CHỦ TÀI SẢN LỆCH: ho_ten_hop_dong_vs_gcn. Cần xác minh lại hồ sơ nhân thân.",
     "⚠️ TÀI SẢN MỚI HÌNH THÀNH (0 tháng): 08/07/2026. Cần làm rõ nguồn gốc vốn mua tài sản trong 2 năm gần nhất."
   ],
-  "has_critical_flags": true,
+  "has_critical_flags": false,
   "processing_notes": [
     "B1 hoàn thành: 3 file, nhóm giấy tờ có mặt: ['chuyen_nhuong', 'gcn', 'nhan_than'].",
-    "[B2] Cross-check (lớp 2: GCN vs Hợp đồng) phát hiện lệch: cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau.",
+    "[B2] Cross-check (lớp 2: GCN vs Hợp đồng) khớp: tên chủ sử dụng trên GCN trùng khớp với tên bên mua trên Hợp đồng mua bán.",
     "B2 hoàn thành: LLM extract thành công.",
-    "Diện tích đủ điều kiện quy đổi: 550",
-    "B3 hoàn thành: 3 flag(s), 3 cảnh báo.",
-    "Hồ sơ được chuyển sang Human Review do có flag ERROR."
+    "Diện tích đủ điều kiện quy đổi: 400",
+    "B3 hoàn thành: 1 flag(s), 1 cảnh báo."
   ],
   "error": null
 }
