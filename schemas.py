@@ -4,7 +4,29 @@ Schemas: GraphState và các domain model cho luồng thẩm định tín dụng
 from __future__ import annotations
 from enum import Enum
 from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+# ─────────────────────────────────────────────
+# Helper: coerce diện tích dạng number → string
+# ─────────────────────────────────────────────
+# Groq LLM (llama-3.3-70b-versatile) đôi khi trả field diện tích dạng number
+# (vd 154.1, hoặc 0 khi trống) thay vì string, dù prompt đã yêu cầu string.
+# Vì Pydantic v2 reject NGUYÊN CẢ object khi 1 field sai kiểu (không chỉ field
+# đó), lỗi này trước đây làm mất luôn các field khác của cùng object đã được
+# LLM trích xuất ĐÚNG (vd ten_du_an, can_cu_phap_ly_du_an, muc_dich_su_dung,
+# thuoc_du_an...) → hệ thống tưởng nhầm là "LLM bỏ sót thông tin" trong khi
+# thực chất LLM đã đọc đúng, chỉ là kiểu dữ liệu bị Pydantic reject.
+# Coerce tại đây để mọi field khác trong object không bị ảnh hưởng.
+def _coerce_numeric_to_str(v):
+    if isinstance(v, bool):
+        # bool là subclass của int trong Python, tránh coerce nhầm True/False
+        return v
+    if isinstance(v, (int, float)):
+        if isinstance(v, float) and v.is_integer():
+            return str(int(v))
+        return str(v)
+    return v
 
 
 # ─────────────────────────────────────────────
@@ -104,6 +126,16 @@ class AssetInfo(BaseModel):
     ben_mua_so_cccd_hop_dong: str = ""    # Số CCCD/CMTND bên mua ghi trên hợp đồng, nếu có
     ben_ban_hop_dong: str = ""            # Tên bên bán/bên chuyển nhượng ghi trên hợp đồng (Nhóm 3)
 
+    # ── Coerce kiểu dữ liệu diện tích (xem _coerce_numeric_to_str ở đầu file) ──
+    @field_validator(
+        "dien_tich_tong", "dien_tich_dat_o", "dien_tich_nha_o",
+        "dien_tich_nn", "dien_tich_nts", "dien_tich_tmdv",
+        mode="before",
+    )
+    @classmethod
+    def _validate_area_fields(cls, v):
+        return _coerce_numeric_to_str(v)
+
 
 class IdentityCheckResult(BaseModel):
     """Kết quả kiểm tra trùng khớp chủ tài sản."""
@@ -136,6 +168,12 @@ class LandPurposeResult(BaseModel):
     web_verification_sources: list[str] = Field(default_factory=list)  # URL nguồn đã tra cứu (audit trail)
     web_verification_summary: str = ""  # Tóm tắt lý do LLM kết luận, kèm trích dẫn nguồn
     warning_tmdv: str = ""
+
+    # ── Coerce kiểu dữ liệu (xem _coerce_numeric_to_str ở đầu file) ──
+    @field_validator("dien_tich_du_dieu_kien", mode="before")
+    @classmethod
+    def _validate_dien_tich_du_dieu_kien(cls, v):
+        return _coerce_numeric_to_str(v)
 
 
 class FlagItem(BaseModel):

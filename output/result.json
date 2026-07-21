@@ -1,8 +1,8 @@
 {
-  "input_folder": "input_data/test_input_4",
+  "input_folder": "input_data/test_input_1",
   "documents": [
     {
-      "path": "input_data\\test_input_4\\cccd_kh.jpg",
+      "path": "input_data\\test_input_1\\cccd_kh.jpg",
       "filename": "cccd_kh.jpg",
       "doc_type": "CCCD",
       "classify_method": "rule",
@@ -11,69 +11,75 @@
       "char_count": 488
     },
     {
-      "path": "input_data\\test_input_4\\gcn_b.pdf",
-      "filename": "gcn_b.pdf",
+      "path": "input_data\\test_input_1\\giay_chung_nhan.pdf",
+      "filename": "giay_chung_nhan.pdf",
       "doc_type": "GCN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 2131
+      "char_count": 2458
     },
     {
-      "path": "input_data\\test_input_4\\hdcn_b.pdf",
-      "filename": "hdcn_b.pdf",
+      "path": "input_data\\test_input_1\\hop_dong_mua_ban-v2.pdf",
+      "filename": "hop_dong_mua_ban-v2.pdf",
       "doc_type": "HOP_DONG_MUA_BAN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 4224
+      "char_count": 4158
     }
   ],
   "owner_info": {
-    "ho_ten": "",
-    "so_cccd": "",
+    "ho_ten": "NGUYỄN MINH TUÁN",
+    "so_cccd": "578302649171",
     "so_cmtnd_cu": "",
-    "ngay_sinh": "",
-    "dia_chi_thuong_tru": ""
+    "ngay_sinh": "15/02/1990",
+    "dia_chi_thuong_tru": "16/4/3, Hoàng Quốc Việt, Phù Ninh, Phú Thọ"
   },
   "asset_info": {
-    "so_gcn": "",
-    "chu_su_dung_goc": "",
-    "chu_su_dung_hien_tai": "",
-    "bien_dong_lich_su": [],
-    "ngay_cap_gcn": "",
-    "ngay_chuyen_nhuong": "",
-    "muc_dich_su_dung": "",
+    "so_gcn": "CH 123456",
+    "chu_su_dung_goc": "Nguyễn Văn A, Nguyễn Thị B",
+    "chu_su_dung_hien_tai": "Nguyễn Minh Tuấn",
+    "bien_dong_lich_su": [
+      {
+        "ngay": "08/07/2026",
+        "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn",
+        "chu_moi": "Nguyễn Minh Tuấn"
+      }
+    ],
+    "ngay_cap_gcn": "12/04/2025",
+    "ngay_chuyen_nhuong": "08/07/2026",
+    "muc_dich_su_dung": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
     "ma_ky_hieu_dat": "",
-    "dia_chi_tai_san": "",
-    "dien_tich_tong": "",
-    "dien_tich_dat_o": "",
-    "dien_tich_nha_o": "",
-    "dien_tich_nn": "",
-    "dien_tich_nts": "",
-    "dien_tich_tmdv": "",
+    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội; Thửa đất số: 0000; Tờ bản đồ số: 01",
+    "dien_tich_tong": "10.012",
+    "dien_tich_dat_o": "400",
+    "dien_tich_nha_o": "150",
+    "dien_tich_nn": "9112",
+    "dien_tich_nts": "500",
+    "dien_tich_tmdv": "0",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
     "ten_du_an": "",
     "can_cu_phap_ly_du_an": "",
-    "nguon_goc_tai_san": "",
-    "ben_mua_hop_dong": "",
-    "ben_mua_so_cccd_hop_dong": "",
-    "ben_ban_hop_dong": ""
+    "nguon_goc_tai_san": "mua bán",
+    "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
+    "ben_mua_so_cccd_hop_dong": "025090012345",
+    "ben_ban_hop_dong": "Nguyễn Văn A, Nguyễn Thị B"
   },
   "identity_check": {
-    "owner_matched": false,
-    "matched_against": "khong_ro",
+    "owner_matched": true,
+    "matched_against": "chu_hien_tai",
     "mismatch_fields": [],
     "is_tang_cho": false,
     "is_thua_ke": false,
-    "asset_formation_date": "",
-    "asset_formation_note": ""
+    "asset_formation_date": "08/07/2026",
+    "asset_formation_note": "Ngày chuyển nhượng"
   },
   "land_purpose": {
-    "muc_dich": "",
+    "muc_dich": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
     "ma_ky_hieu_dat": "",
-    "dien_tich_du_dieu_kien": "",
+    "dien_tich_du_dieu_kien": "550",
     "is_tmdv": false,
     "thuoc_du_an": null,
     "ten_du_an": "",
@@ -85,29 +91,22 @@
   },
   "flags": [
     {
-      "flag_type": "CHU_TAI_SAN_LECH",
-      "severity": "ERROR",
-      "description": "Chủ sử dụng trên GCN/Hợp đồng KHÔNG khớp với CCCD khách hàng. Trường lệch: không rõ trường nào",
-      "affected_field": "ho_ten / so_cccd"
-    },
-    {
-      "flag_type": "NGAY_HINH_THANH_KHONG_XAC_DINH",
+      "flag_type": "TAI_SAN_MOI_HINH_THANH",
       "severity": "WARNING",
-      "description": "Không xác định được ngày hình thành tài sản (asset_formation_date trống hoặc sai định dạng trong hồ sơ). Không thể loại trừ khả năng tài sản mới hình thành trong 2 năm gần nhất — cần cán bộ tín dụng xác minh thủ công.",
+      "description": "Tài sản hình thành ngày 08/07/2026 (0 tháng trước). Cần làm rõ nguồn gốc tiền hình thành tài sản.",
       "affected_field": "asset_formation_date"
     }
   ],
   "warnings": [
-    "⛔ CHỦ TÀI SẢN LỆCH: không rõ trường nào. Cần xác minh lại hồ sơ nhân thân.",
-    "⚠️ KHÔNG XÁC ĐỊNH ĐƯỢC NGÀY HÌNH THÀNH TÀI SẢN: Cần xác minh thủ công nguồn gốc/thời điểm hình thành tài sản."
+    "⚠️ TÀI SẢN MỚI HÌNH THÀNH (0 tháng): 08/07/2026. Cần làm rõ nguồn gốc vốn mua tài sản trong 2 năm gần nhất."
   ],
-  "has_critical_flags": true,
+  "has_critical_flags": false,
   "processing_notes": [
     "B1 hoàn thành: 3 file, nhóm giấy tờ có mặt: ['chuyen_nhuong', 'gcn', 'nhan_than'].",
-    "[B2] Lỗi gọi Groq API: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kvqbn5npfp69e6exm5v5shpt` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 95702, Requested 6593. Please try again in 33m2.88s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-    "Diện tích đủ điều kiện quy đổi: chưa xác định",
-    "B3 hoàn thành: 2 flag(s), 2 cảnh báo.",
-    "Hồ sơ được chuyển sang Human Review do có flag ERROR."
+    "[B2] Cross-check (lớp 2: GCN vs Hợp đồng) khớp: tên chủ sử dụng trên GCN trùng khớp với tên bên mua trên Hợp đồng mua bán.",
+    "B2 hoàn thành: LLM extract thành công.",
+    "Diện tích đủ điều kiện quy đổi: 550",
+    "B3 hoàn thành: 1 flag(s), 1 cảnh báo."
   ],
-  "error": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01kvqbn5npfp69e6exm5v5shpt` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 95702, Requested 6593. Please try again in 33m2.88s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+  "error": null
 }
