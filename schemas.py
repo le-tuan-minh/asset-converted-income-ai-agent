@@ -83,7 +83,8 @@ class AssetInfo(BaseModel):
     dien_tich_tong: str = ""
     dien_tich_dat_o: str = ""
     dien_tich_nha_o: str = ""
-    dien_tich_nn: str = ""
+    dien_tich_nn: str = ""      # CHỈ đất trồng cây lâu năm/lúa/NN khác (CLN/LUC/LUK/NKH) — KHÔNG gồm NTS
+    dien_tich_nts: str = ""     # Diện tích đất nuôi trồng thủy sản (NTS), tách riêng khỏi dien_tich_nn
     dien_tich_tmdv: str = ""
     co_thong_tin_tang_cho: bool = False
     thuoc_du_an: Optional[bool] = None  # Chỉ set khi là TMDV
@@ -119,7 +120,9 @@ class LandPurposeResult(BaseModel):
     """Kết quả phân loại mục đích sử dụng đất."""
     muc_dich: str = ""
     ma_ky_hieu_dat: str = ""            # Mã ký hiệu loại đất (TMD/ODT/ONT/SKC/...)
-    dien_tich_du_dieu_kien: str = ""    # Diện tích được dùng để tính giá trị BĐS
+    dien_tich_du_dieu_kien: str = ""    # Diện tích được dùng để tính giá trị BĐS — LUÔN do
+                                         # code tính tất định (xem nodes/area_rules.py), không
+                                         # lấy trực tiếp từ số LLM tự cộng.
     is_tmdv: bool = False
     thuoc_du_an: Optional[bool] = None
     ten_du_an: str = ""                 # Tên dự án nếu is_tmdv=True và thuoc_du_an=True
@@ -148,6 +151,7 @@ class FlagItem(BaseModel):
         "TMDV_KHONG_KHOP_RULE_BASED",
         "TMDV_CAN_XAC_MINH_THU_CONG",
         "TMDV_DU_AN_XAC_MINH_WEB",
+        "DIEN_TICH_KHONG_KHOP",
         "OCR_THIEU_DU_LIEU",
         "PHAN_LOAI_GIAY_TO_KHONG_XAC_DINH",
     ]

@@ -12,14 +12,25 @@ gửi lên Groq LLM để:
     Thông tư 08/2024/TT-BTNMT) và diện tích, đặc biệt xác định đất TMDV có
     thuộc dự án được phê duyệt hay không (nếu căn cứ có sẵn ngay trong hồ sơ)
 
-Sau khi LLM trả JSON, có 2 lớp rule-based cross-check chạy nối tiếp:
+Sau khi LLM trả JSON, có 3 lớp rule-based cross-check chạy nối tiếp:
   1. TMDV cross-check (nodes/land_rules.py) — không đổi so với trước.
   2. Identity cross-check 2 lớp (nodes/identity_rules.py):
        a. CCCD (owner_info.ho_ten)  vs  GCN (asset_info.chu_su_dung_hien_tai/goc)
        b. GCN (asset_info.chu_su_dung_hien_tai)  vs  Hợp đồng mua bán
           (asset_info.ben_mua_hop_dong — trích xuất ĐỘC LẬP, xem prompt bên dưới)
-     Nguyên tắc: rule-based chỉ được phép làm hệ thống THẬN TRỌNG HƠN — không
-     được tự ý hạ thấp rủi ro hay "hoà giải" sai lệch giữa các nguồn.
+  3. Area cross-check (nodes/area_rules.py):
+       - dien_tich_du_dieu_kien LUÔN được TÍNH LẠI tất định bằng code (đất ở +
+         nhà ở), KHÔNG lấy trực tiếp số LLM tự cộng trong JSON — vì đây là phép
+         cộng đơn giản, không cần LLM "làm toán" và LLM không tất định 100%
+         giữa các lần gọi ở việc này.
+       - Đối chiếu tổng diện tích các thành phần (đất ở + NN + NTS + TMDV) với
+         dien_tich_tong ghi trên GCN, sinh flag WARNING nếu lệch bất thường.
+
+  Nguyên tắc chung: rule-based chỉ được phép làm hệ thống THẬN TRỌNG HƠN — không
+  được tự ý hạ thấp rủi ro hay "hoà giải" sai lệch giữa các nguồn. Riêng phép
+  tính dien_tich_du_dieu_kien là ngoại lệ có chủ đích: đây không phải "hoà giải"
+  dữ liệu mà là một phép cộng tất định, có định nghĩa rõ ràng, nên code luôn là
+  nguồn chân lý duy nhất, không phải LLM.
 """
 from __future__ import annotations
 import json
@@ -35,6 +46,7 @@ from schemas import (
 )
 from nodes.land_rules import detect_tmdv_rule_based, LAND_USE_CODE_REFERENCE
 from nodes.identity_rules import compare_names, describe_mismatch_reason
+from nodes.area_rules import compute_dien_tich_du_dieu_kien, cross_check_area_totals
 
 # ─── LLM setup ───────────────────────────────
 def _get_llm() -> ChatGroq:
@@ -66,6 +78,16 @@ theo tên đã thấy ở văn bản khác, kể cả khi bạn cho rằng chún
 một người". Việc phát hiện các văn bản trong hồ sơ có ghi tên KHÁC NHAU (dù chỉ
 khác thứ tự các chữ trong tên) là một phần MỤC ĐÍCH của hệ thống này — nếu bạn tự
 sửa cho khớp, hệ thống sẽ không phát hiện được sai lệch/gian lận tiềm ẩn.
+
+NGUYÊN TẮC ĐẶC BIỆT QUAN TRỌNG VỀ DIỆN TÍCH:
+Với TẤT CẢ các trường diện tích, bạn CHỈ ĐƯỢC PHÉP đọc và chép lại số liệu ghi
+TRỰC TIẾP trong văn bản theo ĐÚNG loại đất tương ứng (theo mã ký hiệu) — TUYỆT
+ĐỐI KHÔNG được tự cộng, tự gộp, hay tự suy ra một con số tổng hợp nào (kể cả
+dien_tich_du_dieu_kien: hệ thống sẽ tự tính lại giá trị này bằng code, bạn chỉ
+cần điền tạm số bạn tính được nếu có, không cần cố gắng tính cho chính xác).
+Mỗi loại đất (đất ở, đất nông nghiệp trồng cây lâu năm/lúa, đất nuôi trồng thủy
+sản, đất TMDV...) PHẢI được ghi vào ĐÚNG field riêng tương ứng, KHÔNG được gộp
+2 loại đất khác mã ký hiệu vào chung 1 field.
 """
 
 EXTRACT_PROMPT_TEMPLATE = """Dưới đây là nội dung OCR từ các tài liệu trong hồ sơ, đã được
@@ -90,7 +112,8 @@ quan trực tiếp tới nghiệp vụ này:
   - SKC = Đất cơ sở sản xuất phi nông nghiệp
   - SKK/SCC = Đất khu công nghiệp, cụm công nghiệp
   - LUC/LUK = Đất trồng lúa           - CLN = Đất trồng cây lâu năm
-  - NTS = Đất nuôi trồng thủy sản     - NKH = Đất nông nghiệp khác
+  - NTS = Đất nuôi trồng thủy sản (ghi RIÊNG, không gộp vào đất trồng cây lâu năm/lúa)
+  - NKH = Đất nông nghiệp khác
 
 Hãy trích xuất và trả về JSON với cấu trúc sau:
 
@@ -121,7 +144,8 @@ Hãy trích xuất và trả về JSON với cấu trúc sau:
     "dien_tich_tong": "Tổng diện tích m2",
     "dien_tich_dat_o": "Diện tích đất ở (ODT/ONT) m2",
     "dien_tich_nha_o": "Diện tích nhà ở m2",
-    "dien_tich_nn": "Diện tích nông nghiệp m2",
+    "dien_tich_nn": "CHỈ diện tích đất trồng cây lâu năm (CLN) + lúa (LUC/LUK) + đất nông nghiệp khác (NKH) m2. TUYỆT ĐỐI KHÔNG cộng đất nuôi trồng thủy sản vào đây.",
+    "dien_tich_nts": "Diện tích đất nuôi trồng thủy sản (NTS) m2, ghi RIÊNG — không gộp vào dien_tich_nn.",
     "dien_tich_tmdv": "Diện tích đất thương mại, dịch vụ (TMD) m2",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
@@ -144,7 +168,7 @@ Hãy trích xuất và trả về JSON với cấu trúc sau:
   "land_purpose": {{
     "muc_dich": "Đất ở / Đất thương mại, dịch vụ / Đất nông nghiệp / ... (đồng bộ với asset_info.muc_dich_su_dung)",
     "ma_ky_hieu_dat": "Mã ký hiệu loại đất tương ứng (đồng bộ với asset_info.ma_ky_hieu_dat)",
-    "dien_tich_du_dieu_kien": "Diện tích đủ điều kiện quy đổi (chỉ tính đất ở ODT/ONT + nhà ở)",
+    "dien_tich_du_dieu_kien": "Ước tính diện tích đủ điều kiện quy đổi (chỉ tính đất ở ODT/ONT + nhà ở) — hệ thống sẽ TỰ TÍNH LẠI giá trị này bằng code sau khi bạn trả JSON, nên không cần cố tính cho chuẩn xác, chỉ cần điền tạm nếu có.",
     "is_tmdv": false,
     "thuoc_du_an": null,
     "ten_du_an": "Sao chép lại asset_info.ten_du_an nếu is_tmdv=true",
@@ -173,6 +197,11 @@ Lưu ý quan trọng:
 - asset_info.dia_chi_tai_san là địa chỉ CỦA THỬA ĐẤT (trong mục "Thửa đất" trên GCN), khác hoàn
   toàn với owner_info.dia_chi_thuong_tru (địa chỉ thường trú của chủ sở hữu) — không được lấy
   nhầm 2 trường này của nhau.
+- MỖI loại diện tích (dien_tich_dat_o, dien_tich_nn, dien_tich_nts, dien_tich_tmdv...) CHỈ ghi
+  số liệu của ĐÚNG loại đất tương ứng, đọc trực tiếp từ GCN theo mã ký hiệu — KHÔNG tự cộng
+  gộp 2 loại đất khác mã vào cùng 1 field, kể cả khi chúng "cùng thuộc nhóm đất nông nghiệp"
+  theo Điều 9 Luật Đất đai 2024. Việc phân biệt NN thường và NTS là quan trọng đối với
+  nghiệp vụ này.
 
 QUY TẮC XÁC ĐỊNH is_tmdv (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT, KHÔNG SUY DIỄN):
 - is_tmdv = true CHỈ KHI văn bản ghi rõ mục đích sử dụng đất là "đất thương mại, dịch vụ"
@@ -356,6 +385,56 @@ def _cross_check_tmdv_rule_based(
     return land_purpose, asset_info
 
 
+def _cross_check_area_rule_based(
+    asset_info: AssetInfo,
+    land_purpose: LandPurposeResult,
+    flags: list[FlagItem],
+    notes: list[str],
+) -> LandPurposeResult:
+    """
+    Rule-based cross-check diện tích (nodes/area_rules.py):
+      1. dien_tich_du_dieu_kien LUÔN được TÍNH LẠI tất định bằng code (đất ở +
+         nhà ở) — đây là phép cộng đơn giản, không cần LLM quyết định, và việc
+         để LLM tự cộng trong JSON là nguyên nhân chính khiến kết quả cuối cùng
+         lệch nhau giữa các lần gọi trên cùng 1 hồ sơ.
+      2. Đối chiếu tổng diện tích các thành phần (đất ở + NN + NTS + TMDV) với
+         dien_tich_tong ghi trên GCN — CHỈ sinh flag cảnh báo nếu lệch, KHÔNG
+         tự sửa số liệu nào (không đủ căn cứ biết field nào sai).
+    """
+    computed = compute_dien_tich_du_dieu_kien(
+        asset_info.dien_tich_dat_o, asset_info.dien_tich_nha_o
+    )
+    if computed != land_purpose.dien_tich_du_dieu_kien:
+        notes.append(
+            f"[B2] Ghi đè dien_tich_du_dieu_kien: LLM trả "
+            f"'{land_purpose.dien_tich_du_dieu_kien or '(trống)'}', code tính lại tất định "
+            f"= '{computed}' (đất ở {asset_info.dien_tich_dat_o or 0} + "
+            f"nhà ở {asset_info.dien_tich_nha_o or 0})."
+        )
+    land_purpose = land_purpose.model_copy(update={"dien_tich_du_dieu_kien": computed})
+
+    result = cross_check_area_totals(
+        asset_info.dien_tich_tong,
+        asset_info.dien_tich_dat_o,
+        asset_info.dien_tich_nn,
+        asset_info.dien_tich_nts,
+        asset_info.dien_tich_tmdv,
+    )
+    if not result["ok"]:
+        flags.append(FlagItem(
+            flag_type="DIEN_TICH_KHONG_KHOP",
+            severity="WARNING",
+            description=result["message"],
+            affected_field="asset_info.dien_tich_*",
+        ))
+        notes.append(f"[B2] {result['message']}")
+        print(f"[B2] ⚠️ Flag: DIEN_TICH_KHONG_KHOP — {result['message']}")
+    else:
+        print("[B2] ✅ Tổng diện tích các thành phần khớp với dien_tich_tong.")
+
+    return land_purpose
+
+
 def _cross_check_identity_rule_based(
     identity_check: IdentityCheckResult,
     owner_info: OwnerInfo,
@@ -493,8 +572,9 @@ def node_b2_verify(state: GraphState) -> GraphState:
     """
     LangGraph node B2.
     Gom OCR text theo nhóm nghiệp vụ, gửi lên Groq LLM, nhận lại structured JSON,
-    parse thành domain models, chạy rule-based cross-check cho đất TMDV và cho
-    định danh chủ tài sản (2 lớp: CCCD-vs-GCN, GCN-vs-Hợp đồng), và lưu vào state.
+    parse thành domain models, chạy rule-based cross-check cho đất TMDV, diện
+    tích, và định danh chủ tài sản (2 lớp: CCCD-vs-GCN, GCN-vs-Hợp đồng), và
+    lưu vào state.
     """
     print("\n" + "=" * 60)
     print("B2 · VERIFY NODE — Gửi OCR text (đã gom nhóm) lên Groq LLM")
@@ -578,6 +658,9 @@ def node_b2_verify(state: GraphState) -> GraphState:
         land_purpose, asset_info, grouped, flags, notes,
     )
 
+    # ── Rule-based cross-check diện tích: tính lại tất định + đối chiếu tổng ──
+    land_purpose = _cross_check_area_rule_based(asset_info, land_purpose, flags, notes)
+
     # ── Rule-based cross-check định danh chủ tài sản — 2 lớp độc lập ──────────
     # Lớp 1: CCCD (owner_info) vs GCN (asset_info.chu_su_dung_*)
     identity_check = _cross_check_identity_rule_based(
@@ -594,7 +677,8 @@ def node_b2_verify(state: GraphState) -> GraphState:
         f"[B2] owner_matched={identity_check.owner_matched} | "
         f"muc_dich={land_purpose.muc_dich} ({land_purpose.ma_ky_hieu_dat or 'N/A'}) | "
         f"is_tmdv={land_purpose.is_tmdv} | thuoc_du_an={land_purpose.thuoc_du_an} "
-        f"(nguồn={land_purpose.nguon_xac_dinh_du_an})"
+        f"(nguồn={land_purpose.nguon_xac_dinh_du_an}) | "
+        f"dien_tich_du_dieu_kien={land_purpose.dien_tich_du_dieu_kien}"
     )
     print("[B2] Hoàn thành.\n")
 

@@ -60,6 +60,7 @@ def print_report(final_state: GraphState) -> None:
     print(f"   DT đất ở            : {ai.dien_tich_dat_o or 'N/A'} m²")
     print(f"   DT nhà ở            : {ai.dien_tich_nha_o or 'N/A'} m²")
     print(f"   DT NN               : {ai.dien_tich_nn or 'N/A'} m²")
+    print(f"   DT NTS (thủy sản)   : {ai.dien_tich_nts or 'N/A'} m²")
     print(f"   DT TMDV             : {ai.dien_tich_tmdv or 'N/A'} m²")
     print(f"   Nguồn gốc           : {ai.nguon_goc_tai_san or 'N/A'}")
 
