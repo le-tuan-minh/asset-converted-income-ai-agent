@@ -1,8 +1,8 @@
 {
-  "input_folder": "input_data/test_input_1",
+  "input_folder": "input_data/test_input_3",
   "documents": [
     {
-      "path": "input_data\\test_input_1\\cccd_kh.jpg",
+      "path": "input_data\\test_input_3\\cccd_kh.jpg",
       "filename": "cccd_kh.jpg",
       "doc_type": "CCCD",
       "classify_method": "rule",
@@ -11,7 +11,7 @@
       "char_count": 488
     },
     {
-      "path": "input_data\\test_input_1\\giay_chung_nhan.pdf",
+      "path": "input_data\\test_input_3\\giay_chung_nhan.pdf",
       "filename": "giay_chung_nhan.pdf",
       "doc_type": "GCN",
       "classify_method": "rule",
@@ -20,8 +20,8 @@
       "char_count": 2458
     },
     {
-      "path": "input_data\\test_input_1\\hop_dong_mua_ban-v2.pdf",
-      "filename": "hop_dong_mua_ban-v2.pdf",
+      "path": "input_data\\test_input_3\\hop_dong_mua_ban_mname.pdf",
+      "filename": "hop_dong_mua_ban_mname.pdf",
       "doc_type": "HOP_DONG_MUA_BAN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
@@ -43,7 +43,7 @@
     "bien_dong_lich_su": [
       {
         "ngay": "08/07/2026",
-        "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn theo hồ sơ số 004567.CN.001",
+        "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn",
         "chu_moi": "Ông Nguyễn Minh Tuấn"
       }
     ],
@@ -51,26 +51,31 @@
     "ngay_chuyen_nhuong": "08/07/2026",
     "muc_dich_su_dung": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
     "ma_ky_hieu_dat": "",
-    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội; Thửa đất số: 0000; Tờ bản đồ số: 01",
+    "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội",
     "dien_tich_tong": "10012",
     "dien_tich_dat_o": "400",
     "dien_tich_nha_o": "150",
-    "dien_tich_nn": "9612",
+    "dien_tich_nn": "9112",
     "dien_tich_tmdv": "0",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
     "ten_du_an": "",
     "can_cu_phap_ly_du_an": "",
-    "nguon_goc_tai_san": "Chuyển nhượng"
+    "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất",
+    "ben_mua_hop_dong": "Nguyễn Tuấn Minh",
+    "ben_mua_so_cccd_hop_dong": "025090012345",
+    "ben_ban_hop_dong": "Ông Nguyễn Văn A, Bà Nguyễn Thị B"
   },
   "identity_check": {
-    "owner_matched": true,
+    "owner_matched": false,
     "matched_against": "chu_hien_tai",
-    "mismatch_fields": [],
+    "mismatch_fields": [
+      "ho_ten_hop_dong_vs_gcn"
+    ],
     "is_tang_cho": false,
     "is_thua_ke": false,
     "asset_formation_date": "08/07/2026",
-    "asset_formation_note": "Chuyển nhượng"
+    "asset_formation_note": "Chuyển nhượng từ ông Nguyễn Văn A và bà Nguyễn Thị B"
   },
   "land_purpose": {
     "muc_dich": "Đất ở tại nông thôn; Đất trồng cây lâu năm; Đất nuôi trồng thủy sản",
@@ -87,6 +92,18 @@
   },
   "flags": [
     {
+      "flag_type": "CHU_TAI_SAN_KHONG_DONG_NHAT_GIUA_HO_SO",
+      "severity": "ERROR",
+      "description": "Tên chủ sử dụng ghi trên GCN (biến động gần nhất: 'Ông Nguyễn Minh Tuấn') KHÔNG khớp với tên bên mua/bên nhận chuyển nhượng ghi trên Hợp đồng mua bán/văn bản chuyển nhượng ('Nguyễn Tuấn Minh') — cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau. Đây là dấu hiệu bất thường nghiêm trọng giữa 2 văn bản trong cùng hồ sơ, cần cán bộ tín dụng đối chiếu bản gốc trước khi phê duyệt.",
+      "affected_field": "asset_info.chu_su_dung_hien_tai / asset_info.ben_mua_hop_dong"
+    },
+    {
+      "flag_type": "CHU_TAI_SAN_LECH",
+      "severity": "ERROR",
+      "description": "Chủ sử dụng trên GCN/Hợp đồng KHÔNG khớp với CCCD khách hàng. Trường lệch: ho_ten_hop_dong_vs_gcn",
+      "affected_field": "ho_ten / so_cccd"
+    },
+    {
       "flag_type": "TAI_SAN_MOI_HINH_THANH",
       "severity": "WARNING",
       "description": "Tài sản hình thành ngày 08/07/2026 (0 tháng trước). Cần làm rõ nguồn gốc tiền hình thành tài sản.",
@@ -94,15 +111,18 @@
     }
   ],
   "warnings": [
+    "⛔ HỒ SƠ KHÔNG ĐỒNG NHẤT: Tên chủ sử dụng trên GCN khác tên bên mua trên Hợp đồng mua bán (cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau). Cần xác minh lại trước khi phê duyệt.",
+    "⛔ CHỦ TÀI SẢN LỆCH: ho_ten_hop_dong_vs_gcn. Cần xác minh lại hồ sơ nhân thân.",
     "⚠️ TÀI SẢN MỚI HÌNH THÀNH (0 tháng): 08/07/2026. Cần làm rõ nguồn gốc vốn mua tài sản trong 2 năm gần nhất."
   ],
-  "has_critical_flags": false,
+  "has_critical_flags": true,
   "processing_notes": [
     "B1 hoàn thành: 3 file, nhóm giấy tờ có mặt: ['chuyen_nhuong', 'gcn', 'nhan_than'].",
-    "[B2] Cross-check diện tích: khớp (tổng=10012 m², thành_phần=10012 m²).",
+    "[B2] Cross-check (lớp 2: GCN vs Hợp đồng) phát hiện lệch: cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau.",
     "B2 hoàn thành: LLM extract thành công.",
     "Diện tích đủ điều kiện quy đổi: 550",
-    "B3 hoàn thành: 1 flag(s), 1 cảnh báo."
+    "B3 hoàn thành: 3 flag(s), 3 cảnh báo.",
+    "Hồ sơ được chuyển sang Human Review do có flag ERROR."
   ],
   "error": null
 }

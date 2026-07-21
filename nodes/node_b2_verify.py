@@ -3,6 +3,8 @@ B2 - Verify Node (Reasoning AI)
 Gom text theo nhóm nghiệp vụ từ state.documents (đã OCR + phân loại ở B1),
 gửi lên Groq LLM để:
   - Extract thông tin chủ tài sản từ CCCD, GCN, các văn bản chuyển nhượng/thế chấp
+  - Extract ĐỘC LẬP tên bên mua/bên bán ghi trên chính Hợp đồng mua bán / văn bản
+    chuyển nhượng (không đồng bộ/suy luận theo GCN) để có thể đối chiếu chéo
   - So khớp chủ sở hữu
   - Xác định tặng cho / thừa kế
   - Xác định ngày hình thành tài sản
@@ -10,17 +12,14 @@ gửi lên Groq LLM để:
     Thông tư 08/2024/TT-BTNMT) và diện tích, đặc biệt xác định đất TMDV có
     thuộc dự án được phê duyệt hay không (nếu căn cứ có sẵn ngay trong hồ sơ)
 
-Sau khi LLM trả JSON, có thêm 2 bước rule-based cross-check:
-  1. TMDV cross-check (nodes/land_rules.py) — giảm rủi ro LLM bỏ sót/nhận định sai
-     loại đất TMDV.
-  2. Diện tích cross-check (_cross_check_dien_tich) — đối soát tổng diện tích các
-     thành phần (đất ở + nông nghiệp + TMDV) với dien_tich_tong trên GCN, phát hiện
-     trường hợp LLM bỏ sót một loại đất phụ (vd đất nuôi trồng thủy sản, đất trồng lúa)
-     khi gộp vào dien_tich_nn.
-
-Nguyên tắc chung cho cả 2 bước: rule-based chỉ được phép làm hệ thống THẬN TRỌNG HƠN
-(tăng cảnh báo/giữ giá trị an toàn), KHÔNG được tự ý sửa số liệu hay hạ thấp rủi ro
-so với kết quả LLM.
+Sau khi LLM trả JSON, có 2 lớp rule-based cross-check chạy nối tiếp:
+  1. TMDV cross-check (nodes/land_rules.py) — không đổi so với trước.
+  2. Identity cross-check 2 lớp (nodes/identity_rules.py):
+       a. CCCD (owner_info.ho_ten)  vs  GCN (asset_info.chu_su_dung_hien_tai/goc)
+       b. GCN (asset_info.chu_su_dung_hien_tai)  vs  Hợp đồng mua bán
+          (asset_info.ben_mua_hop_dong — trích xuất ĐỘC LẬP, xem prompt bên dưới)
+     Nguyên tắc: rule-based chỉ được phép làm hệ thống THẬN TRỌNG HƠN — không
+     được tự ý hạ thấp rủi ro hay "hoà giải" sai lệch giữa các nguồn.
 """
 from __future__ import annotations
 import json
@@ -35,6 +34,7 @@ from schemas import (
     IdentityCheckResult, LandPurposeResult, DOCUMENT_CATEGORY_MAP, FlagItem,
 )
 from nodes.land_rules import detect_tmdv_rule_based, LAND_USE_CODE_REFERENCE
+from nodes.identity_rules import compare_names, describe_mismatch_reason
 
 # ─── LLM setup ───────────────────────────────
 def _get_llm() -> ChatGroq:
@@ -56,6 +56,16 @@ Với các trường không tìm thấy trong văn bản, để chuỗi rỗng "
 TUYỆT ĐỐI KHÔNG suy diễn/phỏng đoán khi không có căn cứ rõ ràng trong văn bản —
 với các trường quan trọng về pháp lý (is_tmdv, thuoc_du_an), thà để trống/null
 còn hơn đoán sai, vì sai sót ở đây ảnh hưởng trực tiếp đến quyết định tín dụng.
+
+NGUYÊN TẮC ĐẶC BIỆT QUAN TRỌNG VỀ TÍNH ĐỘC LẬP GIỮA CÁC NGUỒN:
+Khi trích xuất tên người (chủ tài sản, bên mua, bên bán...) từ NHIỀU văn bản khác
+nhau trong cùng hồ sơ (CCCD, GCN, Hợp đồng mua bán...), bạn PHẢI đọc và ghi lại
+CHÍNH XÁC NGUYÊN VĂN những gì xuất hiện trong TỪNG văn bản đó — TUYỆT ĐỐI KHÔNG
+được tự động "đồng bộ hoá", "sửa cho khớp", hay suy luận tên ở văn bản này dựa
+theo tên đã thấy ở văn bản khác, kể cả khi bạn cho rằng chúng "chắc chắn là cùng
+một người". Việc phát hiện các văn bản trong hồ sơ có ghi tên KHÁC NHAU (dù chỉ
+khác thứ tự các chữ trong tên) là một phần MỤC ĐÍCH của hệ thống này — nếu bạn tự
+sửa cho khớp, hệ thống sẽ không phát hiện được sai lệch/gian lận tiềm ẩn.
 """
 
 EXTRACT_PROMPT_TEMPLATE = """Dưới đây là nội dung OCR từ các tài liệu trong hồ sơ, đã được
@@ -94,8 +104,8 @@ Hãy trích xuất và trả về JSON với cấu trúc sau:
   }},
   "asset_info": {{
     "so_gcn": "Số seri/mã GCN",
-    "chu_su_dung_goc": "Họ tên người sử dụng đất/sở hữu GHI NHẬN BAN ĐẦU khi cấp GCN (mục 'Người sử dụng đất' ở trang đầu, KHÔNG lấy theo mục biến động)",
-    "chu_su_dung_hien_tai": "Họ tên chủ sử dụng/sở hữu HIỆN TẠI — lấy theo biến động GẦN NHẤT trong mục 'Những thay đổi sau khi cấp GCN' nếu có; nếu GCN chưa từng có biến động thì bằng chu_su_dung_goc",
+    "chu_su_dung_goc": "Họ tên người sử dụng đất/sở hữu GHI NHẬN BAN ĐẦU khi cấp GCN (mục 'Người sử dụng đất' ở trang đầu, KHÔNG lấy theo mục biến động) — trích từ NHÓM 2",
+    "chu_su_dung_hien_tai": "Họ tên chủ sử dụng/sở hữu HIỆN TẠI — lấy theo biến động GẦN NHẤT trong mục 'Những thay đổi sau khi cấp GCN' của NHÓM 2 nếu có; nếu GCN chưa từng có biến động thì bằng chu_su_dung_goc. CHỈ lấy từ NHÓM 2 (GCN), KHÔNG lấy/suy luận từ Hợp đồng ở NHÓM 3.",
     "bien_dong_lich_su": [
       {{
         "ngay": "Ngày ghi nhận biến động (DD/MM/YYYY)",
@@ -111,13 +121,16 @@ Hãy trích xuất và trả về JSON với cấu trúc sau:
     "dien_tich_tong": "Tổng diện tích m2",
     "dien_tich_dat_o": "Diện tích đất ở (ODT/ONT) m2",
     "dien_tich_nha_o": "Diện tích nhà ở m2",
-    "dien_tich_nn": "TỔNG diện tích m2 của TẤT CẢ các loại đất nông nghiệp cộng lại: đất trồng cây lâu năm (CLN), đất trồng lúa (LUC/LUK), đất nuôi trồng thủy sản (NTS), đất nông nghiệp khác (NKH), v.v. Nếu mục 'Loại đất' trên GCN liệt kê NHIỀU loại đất nông nghiệp khác nhau (vd vừa 'đất trồng cây lâu năm' vừa 'đất nuôi trồng thủy sản'), PHẢI cộng gộp diện tích của TẤT CẢ các loại đó vào đây, TUYỆT ĐỐI KHÔNG được chỉ lấy loại đầu tiên hoặc bỏ sót loại nào.",
+    "dien_tich_nn": "Diện tích nông nghiệp m2",
     "dien_tich_tmdv": "Diện tích đất thương mại, dịch vụ (TMD) m2",
     "co_thong_tin_tang_cho": false,
     "thuoc_du_an": null,
     "ten_du_an": "Tên dự án đầu tư nếu hồ sơ có nêu rõ (vd: Khu đô thị..., Khu công nghiệp...). Để trống nếu không có.",
     "can_cu_phap_ly_du_an": "Số + ngày quyết định phê duyệt dự án/chủ trương đầu tư/giấy chứng nhận đầu tư NẾU hồ sơ có ghi rõ. Để trống nếu không có.",
-    "nguon_goc_tai_san": "Mô tả nguồn gốc: mua bán / được cấp / tặng cho / thừa kế"
+    "nguon_goc_tai_san": "Mô tả nguồn gốc: mua bán / được cấp / tặng cho / thừa kế",
+    "ben_mua_hop_dong": "Họ tên bên mua/bên nhận chuyển nhượng, ghi CHÍNH XÁC NGUYÊN VĂN như xuất hiện trong NHÓM 3 (Hợp đồng mua bán/văn bản chuyển nhượng). TRÍCH XUẤT ĐỘC LẬP — đọc trực tiếp từ NHÓM 3, TUYỆT ĐỐI KHÔNG copy/sửa theo chu_su_dung_hien_tai hay bất kỳ tên nào đã thấy ở NHÓM 2. Nếu NHÓM 3 không có/không xác định được, để trống.",
+    "ben_mua_so_cccd_hop_dong": "Số CCCD/CMTND của bên mua ghi trên Hợp đồng (NHÓM 3) nếu có, để trống nếu không có.",
+    "ben_ban_hop_dong": "Họ tên bên bán/bên chuyển nhượng ghi NGUYÊN VĂN trên Hợp đồng (NHÓM 3), để trống nếu không xác định được."
   }},
   "identity_check": {{
     "owner_matched": true,
@@ -147,21 +160,19 @@ Lưu ý quan trọng:
   chu_su_dung_hien_tai. Nếu KHÔNG có mục biến động nào, chu_su_dung_hien_tai = chu_su_dung_goc.
 - Liệt kê ĐẦY ĐỦ mọi mục biến động tìm thấy vào bien_dong_lich_su (không chỉ mục gần nhất),
   sắp xếp theo thời gian tăng dần.
-- owner_matched = true nếu họ tên / số CCCD trên hồ sơ khách hàng TRÙNG với chu_su_dung_hien_tai
-  (ưu tiên) hoặc chu_su_dung_goc (nếu GCN chưa từng biến động). Ghi rõ vào matched_against
-  đã so khớp với chủ nào.
+- owner_matched = true nếu họ tên / số CCCD trên hồ sơ khách hàng TRÙNG TUYỆT ĐỐI (từng chữ,
+  đúng thứ tự) với chu_su_dung_hien_tai (ưu tiên) hoặc chu_su_dung_goc (nếu GCN chưa từng
+  biến động). Tên chỉ khác thứ tự âm tiết (vd "Nguyễn Minh Tuấn" vs "Nguyễn Tuấn Minh") PHẢI
+  được coi là owner_matched=false, ghi "ho_ten" vào mismatch_fields — KHÔNG được coi là lỗi
+  chính tả/OCR để bỏ qua. Ghi rõ vào matched_against đã so khớp với chủ nào.
+- ben_mua_hop_dong PHẢI là kết quả đọc trực tiếp, độc lập từ NHÓM 3 — coi như bạn đang trích
+  xuất trường này TRƯỚC KHI biết đến nội dung NHÓM 2, để tránh vô tình làm 2 giá trị này khớp
+  nhau chỉ vì bạn nghĩ chúng nên khớp.
 - is_tang_cho = true nếu chu_su_dung_goc, hợp đồng, HOẶC bất kỳ mục nào trong bien_dong_lich_su
   có chữ "tặng cho", "cho tặng", "thừa kế", "di chúc"
 - asset_info.dia_chi_tai_san là địa chỉ CỦA THỬA ĐẤT (trong mục "Thửa đất" trên GCN), khác hoàn
   toàn với owner_info.dia_chi_thuong_tru (địa chỉ thường trú của chủ sở hữu) — không được lấy
   nhầm 2 trường này của nhau.
-- QUAN TRỌNG VỀ DIỆN TÍCH: mục "Loại đất" trên GCN có thể liệt kê nhiều loại đất khác nhau
-  trên CÙNG một thửa (vd "Đất ở tại nông thôn 400 m²; Đất trồng cây lâu năm 9.112 m²; Đất nuôi
-  trồng thủy sản 500 m²"). Phải phân loại và CỘNG GỘP đúng từng nhóm: đất ở (ODT/ONT) vào
-  dien_tich_dat_o, TẤT CẢ các loại đất nông nghiệp (cây lâu năm, lúa, thủy sản, khác...) cộng
-  chung vào dien_tich_nn, đất TMD vào dien_tich_tmdv. Tổng dien_tich_dat_o + dien_tich_nn +
-  dien_tich_tmdv phải BẰNG dien_tich_tong (không tính dien_tich_nha_o vào tổng này vì đó là
-  diện tích xây dựng, không phải diện tích đất). Tự kiểm tra lại phép cộng trước khi trả JSON.
 
 QUY TẮC XÁC ĐỊNH is_tmdv (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT, KHÔNG SUY DIỄN):
 - is_tmdv = true CHỈ KHI văn bản ghi rõ mục đích sử dụng đất là "đất thương mại, dịch vụ"
@@ -188,7 +199,8 @@ QUY TẮC XÁC ĐỊNH thuoc_du_an (CHỈ XEM XÉT KHI is_tmdv=true):
 - dien_tich_du_dieu_kien chỉ bao gồm đất ở (ODT/ONT) + nhà ở, KHÔNG tính nông nghiệp và TMDV.
 - Nhóm 3 có thể chứa nhiều loại văn bản (hợp đồng mua bán, văn bản/xác nhận chuyển nhượng,
   hợp đồng/xác nhận thế chấp) — hãy tổng hợp thông tin từ tất cả, ưu tiên văn bản có ngày
-  gần nhất khi có xung đột.
+  gần nhất khi có xung đột. Với riêng ben_mua_hop_dong/ben_ban_hop_dong/ben_mua_so_cccd_hop_dong,
+  nếu có nhiều văn bản trong Nhóm 3, ưu tiên lấy theo văn bản có ngày ký gần nhất.
 """
 
 
@@ -344,117 +356,145 @@ def _cross_check_tmdv_rule_based(
     return land_purpose, asset_info
 
 
-def _to_float_area(value: str) -> float | None:
-    """
-    Parse chuỗi diện tích tiếng Việt về float, hỗ trợ các định dạng phổ biến:
-      "10012", "10012.5", "10.012" (dấu chấm phân cách nghìn), "10,012.5" (US style).
-    Trả về None nếu không parse được hoặc chuỗi rỗng.
-    """
-    if value is None:
-        return None
-    s = str(value).strip()
-    if not s:
-        return None
-    # Bỏ mọi ký tự không phải số/dấu phân cách (vd "m2", khoảng trắng)
-    s = re.sub(r"[^0-9.,]", "", s)
-    if not s:
-        return None
-
-    try:
-        if "," in s and "." in s:
-            # Dấu xuất hiện sau cùng là phân cách thập phân
-            if s.rfind(",") > s.rfind("."):
-                s = s.replace(".", "").replace(",", ".")
-            else:
-                s = s.replace(",", "")
-        elif "," in s:
-            # Chỉ có dấu phẩy: coi là phân cách thập phân kiểu VN
-            s = s.replace(",", ".")
-        elif s.count(".") > 1:
-            # Nhiều dấu chấm → phân cách nghìn kiểu VN (vd "10.012")
-            s = s.replace(".", "")
-        elif "." in s:
-            # Một dấu chấm: nếu phần sau có đúng 3 chữ số VÀ phần nguyên đã có số
-            # → nhiều khả năng là phân cách nghìn ("10.012" = 10012), không phải thập phân.
-            integer_part, _, decimal_part = s.partition(".")
-            if len(decimal_part) == 3 and integer_part:
-                s = s.replace(".", "")
-        return float(s)
-    except ValueError:
-        return None
-
-
-def _cross_check_dien_tich(
+def _cross_check_identity_rule_based(
+    identity_check: IdentityCheckResult,
+    owner_info: OwnerInfo,
     asset_info: AssetInfo,
     flags: list[FlagItem],
     notes: list[str],
-) -> None:
+    warnings: list[str],
+) -> IdentityCheckResult:
     """
-    Rule-based cross-check: đối soát tổng diện tích các thành phần đất
-    (dien_tich_dat_o + dien_tich_nn + dien_tich_tmdv) với dien_tich_tong trên GCN.
+    LỚP 1: So khớp CCCD (owner_info.ho_ten) với chủ sử dụng trên GCN
+    (asset_info.chu_su_dung_hien_tai hoặc chu_su_dung_goc, tuỳ matched_against).
 
-    KHÔNG cộng dien_tich_nha_o vào tổng này vì đó là diện tích sàn xây dựng
-    (một đại lượng khác bản chất với diện tích đất), không phải một loại đất riêng.
-
-    Đây là phép toán xác định (không cần LLM suy luận), dùng làm lưới an toàn để
-    bắt các trường hợp LLM bỏ sót một loại đất phụ khi gộp vào dien_tich_nn (vd bỏ
-    sót "đất nuôi trồng thủy sản" khi GCN liệt kê nhiều loại đất nông nghiệp).
-    Chỉ cảnh báo, KHÔNG tự động sửa số liệu — vì hệ thống không biết thiếu ở đâu.
+    Đây là lưới an toàn cho trường hợp LLM tự kết luận owner_matched=True dù 2
+    chuỗi tên không khớp tuyệt đối (vd chỉ khác thứ tự âm tiết). Nguyên tắc:
+    CHỈ được hạ owner_matched True → False (thận trọng hơn), KHÔNG được nâng
+    False → True.
     """
-    tong = _to_float_area(asset_info.dien_tich_tong)
-    if tong is None or tong <= 0:
-        notes.append(
-            "[B2] Bỏ qua cross-check diện tích: không parse được dien_tich_tong "
-            f"('{asset_info.dien_tich_tong}')."
+    if not identity_check.owner_matched:
+        return identity_check  # LLM đã tự báo mismatch, không cần rule-based nâng đỡ
+
+    target_name = (
+        asset_info.chu_su_dung_goc
+        if identity_check.matched_against == "chu_goc"
+        else asset_info.chu_su_dung_hien_tai
+    ) or asset_info.chu_su_dung_hien_tai or asset_info.chu_su_dung_goc
+
+    result = compare_names(owner_info.ho_ten, target_name)
+
+    if not result["has_data"]:
+        return identity_check  # thiếu dữ liệu để so sánh, không đủ căn cứ để override
+
+    if not result["exact_match"]:
+        reason = describe_mismatch_reason(result)
+        mismatch_fields = list(identity_check.mismatch_fields)
+        if "ho_ten" not in mismatch_fields:
+            mismatch_fields.append("ho_ten")
+
+        identity_check = identity_check.model_copy(update={
+            "owner_matched": False,
+            "mismatch_fields": mismatch_fields,
+        })
+
+        desc = (
+            f"LLM kết luận owner_matched=True nhưng rule-based so sánh chuỗi phát hiện "
+            f"tên trên CCCD ('{owner_info.ho_ten}') KHÔNG khớp tuyệt đối với tên chủ sử dụng "
+            f"trên GCN ('{target_name}') — {reason}. Đã tự động điều chỉnh owner_matched=False "
+            f"theo hướng thận trọng, cần cán bộ tín dụng đối chiếu bản gốc."
         )
-        return
-
-    dat_o = _to_float_area(asset_info.dien_tich_dat_o) or 0.0
-    nn = _to_float_area(asset_info.dien_tich_nn) or 0.0
-    tmdv = _to_float_area(asset_info.dien_tich_tmdv) or 0.0
-    thanh_phan = dat_o + nn + tmdv
-
-    # Sai số cho phép do làm tròn số liệu trong văn bản gốc
-    TOLERANCE_M2 = 1.0
-    lech = tong - thanh_phan
-
-    if abs(lech) > TOLERANCE_M2:
         flags.append(FlagItem(
-            flag_type="OCR_THIEU_DU_LIEU",
-            severity="WARNING",
-            description=(
-                f"Tổng diện tích các loại đất extract được (đất ở {dat_o:.0f} + "
-                f"nông nghiệp {nn:.0f} + TMDV {tmdv:.0f} = {thanh_phan:.0f} m²) "
-                f"KHÔNG khớp diện tích tổng ghi trên GCN ({tong:.0f} m²), "
-                f"chênh lệch {lech:+.0f} m². Nhiều khả năng LLM đã bỏ sót một loại đất "
-                "phụ (vd đất nuôi trồng thủy sản, đất trồng lúa, đất nông nghiệp khác...) "
-                "khi gộp vào dien_tich_nn. Cần cán bộ tín dụng đối chiếu lại mục 'Loại đất' "
-                "trên bản gốc GCN trước khi dùng dien_tich_du_dieu_kien để tính giá trị TSBĐ."
-            ),
-            affected_field="asset_info.dien_tich_dat_o / dien_tich_nn / dien_tich_tmdv",
+            flag_type="CHU_TAI_SAN_LECH_RULE_BASED",
+            severity="ERROR",
+            description=desc,
+            affected_field="owner_info.ho_ten / asset_info.chu_su_dung_hien_tai",
         ))
+        warnings.append(f"⛔ CHỦ TÀI SẢN LỆCH (rule-based): {reason}. Cần xác minh lại hồ sơ.")
+        notes.append(f"[B2] Rule-based override (lớp 1: CCCD vs GCN): owner_matched=False ({reason}).")
+        print(f"[B2] ⛔ [Lớp 1] Rule-based override owner_matched=False — {reason}")
+
+    return identity_check
+
+
+def _cross_check_contract_identity_rule_based(
+    identity_check: IdentityCheckResult,
+    asset_info: AssetInfo,
+    flags: list[FlagItem],
+    notes: list[str],
+    warnings: list[str],
+) -> IdentityCheckResult:
+    """
+    LỚP 2: So khớp tên chủ sử dụng trên GCN (asset_info.chu_su_dung_hien_tai)
+    với tên bên mua trích xuất ĐỘC LẬP từ Hợp đồng mua bán/văn bản chuyển nhượng
+    (asset_info.ben_mua_hop_dong).
+
+    Lớp này bắt được trường hợp: GCN đã được cập nhật đúng tên chủ mới, khiến
+    Lớp 1 (CCCD vs GCN) không phát hiện bất thường — nhưng chính Hợp đồng mua
+    bán (văn bản gốc làm căn cứ cho việc cập nhật GCN) lại ghi tên bên mua khác
+    với tên trên GCN. Đây là dấu hiệu bất thường nghiêm trọng giữa 2 văn bản
+    trong cùng hồ sơ, độc lập với kết quả Lớp 1.
+    """
+    if not asset_info.ben_mua_hop_dong:
         notes.append(
-            f"[B2] Cross-check diện tích: LỆCH {lech:+.0f} m² so với dien_tich_tong "
-            f"(tổng={tong:.0f}, thành_phần={thanh_phan:.0f})."
+            "[B2] Không trích xuất được tên bên mua/nhận chuyển nhượng từ Hợp đồng mua bán/"
+            "văn bản chuyển nhượng (Nhóm 3) — không thể đối chiếu chéo với GCN. "
+            "Cần cán bộ tín dụng kiểm tra thủ công nếu hồ sơ có văn bản chuyển nhượng."
         )
-        print(
-            f"[B2] ⚠️ Cross-check diện tích lệch: tổng GCN={tong:.0f} m² "
-            f"vs thành phần extract={thanh_phan:.0f} m² (chênh {lech:+.0f} m²)"
+        return identity_check
+
+    result = compare_names(asset_info.chu_su_dung_hien_tai, asset_info.ben_mua_hop_dong)
+
+    if not result["has_data"]:
+        return identity_check
+
+    if not result["exact_match"]:
+        reason = describe_mismatch_reason(result)
+        desc = (
+            f"Tên chủ sử dụng ghi trên GCN (biến động gần nhất: "
+            f"'{asset_info.chu_su_dung_hien_tai}') KHÔNG khớp với tên bên mua/bên nhận chuyển "
+            f"nhượng ghi trên Hợp đồng mua bán/văn bản chuyển nhượng "
+            f"('{asset_info.ben_mua_hop_dong}') — {reason}. Đây là dấu hiệu bất thường nghiêm "
+            f"trọng giữa 2 văn bản trong cùng hồ sơ, cần cán bộ tín dụng đối chiếu bản gốc "
+            f"trước khi phê duyệt."
         )
+        flags.append(FlagItem(
+            flag_type="CHU_TAI_SAN_KHONG_DONG_NHAT_GIUA_HO_SO",
+            severity="ERROR",
+            description=desc,
+            affected_field="asset_info.chu_su_dung_hien_tai / asset_info.ben_mua_hop_dong",
+        ))
+        warnings.append(
+            f"⛔ HỒ SƠ KHÔNG ĐỒNG NHẤT: Tên chủ sử dụng trên GCN khác tên bên mua trên "
+            f"Hợp đồng mua bán ({reason}). Cần xác minh lại trước khi phê duyệt."
+        )
+        # Nếu GCN khớp CCCD nhưng Hợp đồng lại lệch, không thể coi hồ sơ là "đã xác minh
+        # đầy đủ" — hạ owner_matched xuống False để B3/route đưa hồ sơ vào human review.
+        mismatch_fields = list(identity_check.mismatch_fields)
+        if "ho_ten_hop_dong_vs_gcn" not in mismatch_fields:
+            mismatch_fields.append("ho_ten_hop_dong_vs_gcn")
+        identity_check = identity_check.model_copy(update={
+            "owner_matched": False,
+            "mismatch_fields": mismatch_fields,
+        })
+        notes.append(f"[B2] Cross-check (lớp 2: GCN vs Hợp đồng) phát hiện lệch: {reason}.")
+        print(f"[B2] ⛔ [Lớp 2] Lệch tên giữa GCN và Hợp đồng mua bán — {reason}")
     else:
         notes.append(
-            f"[B2] Cross-check diện tích: khớp (tổng={tong:.0f} m², "
-            f"thành_phần={thanh_phan:.0f} m²)."
+            "[B2] Cross-check (lớp 2: GCN vs Hợp đồng) khớp: tên chủ sử dụng trên GCN "
+            "trùng khớp với tên bên mua trên Hợp đồng mua bán."
         )
-        print(f"[B2] ✅ Cross-check diện tích khớp: {thanh_phan:.0f}/{tong:.0f} m²")
+        print("[B2] ✅ [Lớp 2] Tên trên GCN khớp với Hợp đồng mua bán.")
+
+    return identity_check
 
 
 def node_b2_verify(state: GraphState) -> GraphState:
     """
     LangGraph node B2.
     Gom OCR text theo nhóm nghiệp vụ, gửi lên Groq LLM, nhận lại structured JSON,
-    parse thành domain models, chạy rule-based cross-check (TMDV + diện tích), và
-    lưu vào state.
+    parse thành domain models, chạy rule-based cross-check cho đất TMDV và cho
+    định danh chủ tài sản (2 lớp: CCCD-vs-GCN, GCN-vs-Hợp đồng), và lưu vào state.
     """
     print("\n" + "=" * 60)
     print("B2 · VERIFY NODE — Gửi OCR text (đã gom nhóm) lên Groq LLM")
@@ -462,6 +502,7 @@ def node_b2_verify(state: GraphState) -> GraphState:
 
     notes = list(state.processing_notes)
     flags = list(state.flags)
+    warnings = list(state.warnings)
 
     grouped = _build_grouped_text(state)
 
@@ -537,8 +578,16 @@ def node_b2_verify(state: GraphState) -> GraphState:
         land_purpose, asset_info, grouped, flags, notes,
     )
 
-    # ── Rule-based cross-check cho tổng diện tích (bắt lỗi LLM bỏ sót loại đất phụ) ──
-    _cross_check_dien_tich(asset_info, flags, notes)
+    # ── Rule-based cross-check định danh chủ tài sản — 2 lớp độc lập ──────────
+    # Lớp 1: CCCD (owner_info) vs GCN (asset_info.chu_su_dung_*)
+    identity_check = _cross_check_identity_rule_based(
+        identity_check, owner_info, asset_info, flags, notes, warnings,
+    )
+    # Lớp 2: GCN (asset_info.chu_su_dung_hien_tai) vs Hợp đồng mua bán
+    # (asset_info.ben_mua_hop_dong, trích xuất độc lập ở prompt phía trên)
+    identity_check = _cross_check_contract_identity_rule_based(
+        identity_check, asset_info, flags, notes, warnings,
+    )
 
     notes.append("B2 hoàn thành: LLM extract thành công.")
     print(
@@ -555,5 +604,6 @@ def node_b2_verify(state: GraphState) -> GraphState:
         "identity_check": identity_check,
         "land_purpose": land_purpose,
         "flags": flags,
+        "warnings": warnings,
         "processing_notes": notes,
     })
