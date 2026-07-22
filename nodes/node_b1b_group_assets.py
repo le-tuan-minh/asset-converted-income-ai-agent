@@ -24,15 +24,13 @@ theo hợp đồng mua bán/thế chấp riêng). Node này:
   B2/B3 cho tới khi con người xác nhận/chỉnh sửa ở bước sau (node_human_confirm_grouping).
 """
 from __future__ import annotations
-import json
-import os
 import re
 
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from schemas import GraphState, DocumentType, AssetGroupCandidate, FlagItem, DOCUMENT_CATEGORY_MAP
-from nodes.document_classifier import _strip_accents
+from utils.llm_config import get_llm
+from utils.parsing_utils import parse_json_safe
 
 # ─────────────────────────────────────────────
 # Rule-based: trích "vân tay" tài sản từ 1 file GCN
@@ -113,26 +111,8 @@ file đó vào mảng "khong_gan_duoc" thay vì đoán bừa.
 """
 
 
-def _parse_json_safe(raw: str) -> dict:
-    raw = (raw or "").strip()
-    match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```", raw)
-    if match:
-        raw = match.group(1)
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        brace_match = re.search(r"\{[\s\S]+\}", raw)
-        if brace_match:
-            return json.loads(brace_match.group(0))
-        raise
-
-
 def _call_llm_grouping(gcn_docs, contract_docs) -> dict:
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GROQ_API_KEY chưa được set trong .env")
-
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0, api_key=api_key)
+    llm = get_llm()
 
     doc_blocks = []
     for d in gcn_docs + contract_docs:
@@ -143,7 +123,7 @@ def _call_llm_grouping(gcn_docs, contract_docs) -> dict:
         SystemMessage(content=_GROUPING_SYSTEM_PROMPT),
         HumanMessage(content=user_content),
     ])
-    return _parse_json_safe(resp.content)
+    return parse_json_safe(resp.content)
 
 
 # ─────────────────────────────────────────────

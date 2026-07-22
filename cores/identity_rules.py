@@ -33,7 +33,7 @@ một kết luận "mismatch" của LLM thành "match".
 from __future__ import annotations
 import difflib
 
-from nodes.document_classifier import _strip_accents
+from utils.parsing_utils import strip_accents
 
 # Danh xưng/tiền tố xã giao thường xuất hiện trước tên trong văn bản pháp lý VN
 # (GCN, hợp đồng...). Đây KHÔNG phải một phần định danh cá nhân — 2 người khác
@@ -70,7 +70,7 @@ def normalize_name(name: str) -> str:
     """
     if not name:
         return ""
-    tokens = _strip_accents(name).split()
+    tokens = strip_accents(name).split()
     tokens = _strip_honorifics(tokens)
     return " ".join(tokens)
 
@@ -79,7 +79,7 @@ def _is_honorific(token: str) -> bool:
     """So khớp danh xưng KHÔNG phân biệt dấu (vd 'ÔNG' vẫn nhận diện được như
     'ONG'), dùng riêng cho normalize_name_keep_diacritics() bên dưới — vì
     _HONORIFIC_PREFIXES lưu dạng đã bỏ dấu."""
-    return _strip_accents(token) in _HONORIFIC_PREFIXES
+    return strip_accents(token) in _HONORIFIC_PREFIXES
 
 
 def _strip_honorifics_keep_diacritics(tokens: list[str]) -> list[str]:

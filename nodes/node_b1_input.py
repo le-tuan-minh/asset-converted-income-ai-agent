@@ -23,8 +23,8 @@ thiếu/rỗng vào B1b/B2 (tránh gom nhóm/so khớp trên dữ liệu không 
 from __future__ import annotations
 
 from schemas import GraphState, DocumentItem, DocumentType, FlagItem, DOCUMENT_CATEGORY_MAP
-from ocr_utils import list_input_files, extract_text_hybrid
-from nodes.document_classifier import classify_document
+from utils.ocr_utils import list_input_files, extract_text_hybrid
+from cores.document_classifier import classify_document
 
 MIN_CHARS_WARNING_THRESHOLD = 50
 

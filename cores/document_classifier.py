@@ -9,12 +9,13 @@ Chiến lược 2 tầng:
 from __future__ import annotations
 import os
 import re
-import unicodedata
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from schemas import DocumentType
+from utils.llm_config import get_llm
+from utils.parsing_utils import strip_accents
 
 # Ngưỡng confidence rule-based tối thiểu để KHÔNG cần gọi LLM fallback
 RULE_BASED_CONFIDENCE_THRESHOLD = 0.5
@@ -83,14 +84,6 @@ _SECONDARY_KEYWORDS: dict[DocumentType, list[str]] = {
 }
 
 
-def _strip_accents(text: str) -> str:
-    """Bỏ dấu tiếng Việt + uppercase, giúp keyword matching bền hơn với lỗi OCR dấu."""
-    normalized = unicodedata.normalize("NFD", text)
-    no_accents = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
-    no_accents = no_accents.replace("Đ", "D").replace("đ", "d")
-    return no_accents.upper()
-
-
 def classify_rule_based(text: str, filename: str = "") -> tuple[DocumentType, float]:
     """
     Phân loại dựa trên keyword matching có trọng số:
@@ -103,9 +96,9 @@ def classify_rule_based(text: str, filename: str = "") -> tuple[DocumentType, fl
 
     Trả về (doc_type, confidence) với confidence trong [0, 1].
     """
-    header = _strip_accents((text or "")[:HEADER_WINDOW_CHARS])
-    body = _strip_accents((text or "")[:CLASSIFY_WINDOW_CHARS])
-    filename_hint = _strip_accents(filename).replace(" ", "")
+    header = strip_accents((text or "")[:HEADER_WINDOW_CHARS])
+    body = strip_accents((text or "")[:CLASSIFY_WINDOW_CHARS])
+    filename_hint = strip_accents(filename).replace(" ", "")
 
     scores: dict[DocumentType, int] = {}
     for doc_type in DocumentType:
@@ -162,11 +155,7 @@ def classify_llm(text: str, llm: ChatGroq | None = None) -> tuple[DocumentType, 
         return DocumentType.KHONG_XAC_DINH, 0.0
 
     try:
-        llm = llm or ChatGroq(
-            model="llama-3.3-70b-versatile",
-            temperature=0,
-            api_key=os.getenv("GROQ_API_KEY"),
-        )
+        llm = llm or get_llm()
         response = llm.invoke([
             SystemMessage(content=_CLASSIFY_SYSTEM_PROMPT),
             HumanMessage(content=f"Đoạn trích văn bản:\n{snippet}"),
