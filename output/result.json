@@ -1,8 +1,8 @@
 {
-  "input_folder": "input_data/test_input_2_tmdv_websearch",
+  "input_folder": "input_data/test_input_3",
   "documents": [
     {
-      "path": "input_data\\test_input_2_tmdv_websearch\\cccd_kh.jpg",
+      "path": "input_data\\test_input_3\\cccd_kh.jpg",
       "filename": "cccd_kh.jpg",
       "doc_type": "CCCD",
       "classify_method": "rule",
@@ -11,22 +11,22 @@
       "char_count": 488
     },
     {
-      "path": "input_data\\test_input_2_tmdv_websearch\\giay_chung_nhan-v3.pdf",
-      "filename": "giay_chung_nhan-v3.pdf",
+      "path": "input_data\\test_input_3\\giay_chung_nhan.pdf",
+      "filename": "giay_chung_nhan.pdf",
       "doc_type": "GCN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 2468
+      "char_count": 2458
     },
     {
-      "path": "input_data\\test_input_2_tmdv_websearch\\hop_dong_mua_ban-v3.pdf",
-      "filename": "hop_dong_mua_ban-v3.pdf",
+      "path": "input_data\\test_input_3\\hop_dong_mua_ban_mname.pdf",
+      "filename": "hop_dong_mua_ban_mname.pdf",
       "doc_type": "HOP_DONG_MUA_BAN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 4169
+      "char_count": 4158
     }
   ],
   "asset_groups": [
@@ -35,8 +35,8 @@
       "so_gcn_goi_y": "cấp",
       "dia_chi_goi_y": "Thửa 0000, Tờ BĐ 01",
       "filenames": [
-        "giay_chung_nhan-v3.pdf",
-        "hop_dong_mua_ban-v3.pdf"
+        "giay_chung_nhan.pdf",
+        "hop_dong_mua_ban_mname.pdf"
       ],
       "shared_filenames": [
         "cccd_kh.jpg"
@@ -53,8 +53,8 @@
       "asset_id": "asset_1",
       "document_filenames": [
         "cccd_kh.jpg",
-        "giay_chung_nhan-v3.pdf",
-        "hop_dong_mua_ban-v3.pdf"
+        "giay_chung_nhan.pdf",
+        "hop_dong_mua_ban_mname.pdf"
       ],
       "owner_info": {
         "ho_ten": "NGUYỄN MINH TUÁN",
@@ -90,7 +90,7 @@
         "ten_du_an": "",
         "can_cu_phap_ly_du_an": "",
         "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất",
-        "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
+        "ben_mua_hop_dong": "Nguyễn Tuấn Minh",
         "ben_mua_so_cccd_hop_dong": "025090012345",
         "ben_ban_hop_dong": "Nguyễn Văn A, Nguyễn Thị B"
       },
@@ -120,10 +120,10 @@
       },
       "flags": [
         {
-          "flag_type": "TMDV_KHONG_KHOP_RULE_BASED",
+          "flag_type": "CHU_TAI_SAN_KHONG_DONG_NHAT_GIUA_HO_SO",
           "severity": "WARNING",
-          "description": "Rule-based phát hiện tín hiệu đất thương mại dịch vụ (TMD) trong văn bản, nhưng LLM không gắn is_tmdv=True. Cần cán bộ tín dụng đối chiếu lại.",
-          "affected_field": "land_purpose.is_tmdv"
+          "description": "Tên chủ sử dụng trên GCN ('Ông Nguyễn Minh Tuấn') không khớp bên mua trên hợp đồng ('Nguyễn Tuấn Minh'): cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau.",
+          "affected_field": "asset_info.chu_su_dung_hien_tai / ben_mua_hop_dong"
         },
         {
           "flag_type": "TAI_SAN_MOI_HINH_THANH",
@@ -133,12 +133,13 @@
         }
       ],
       "warnings": [
+        "⚠️ Tên trên GCN và Hợp đồng mua bán không khớp: cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau",
         "⚠️ Tài sản mới hình thành (0 tháng) — cần làm rõ nguồn gốc tiền."
       ],
       "has_critical_flags": false,
       "processing_notes": [
-        "[B2] Rule-based: có tín hiệu TMDV nhưng LLM bỏ sót is_tmdv.",
         "[B2] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 400 m², nhà ở = 150 m².",
+        "[B2] Lệch tên GCN vs Hợp đồng: cùng bộ âm tiết nhưng khác thứ tự (hoán vị họ/tên đệm/tên) — đây là 2 tên khác nhau",
         "B2 hoàn thành: LLM extract thành công.",
         "[B3] Ngày hình thành tài sản xác định = 08/07/2026 (nguồn: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026)).",
         "[B3] Lưu ý: LLM tự ghi asset_formation_date='12/04/2025' khác với ngày rule-based tính được (08/07/2026). Ưu tiên dùng kết quả rule-based (nguồn: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026))."
