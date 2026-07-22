@@ -26,10 +26,10 @@ SUPPORTED_EXTENSIONS: set[str] = {
 MIN_CHARS_PER_PAGE = 40
 
 # Khởi tạo reader một lần duy nhất (tránh reload model nhiều lần)
-_reader: easyocr.Reader | None = None
+_reader: "easyocr.Reader | None" = None
 
 
-def get_reader() -> easyocr.Reader:
+def get_reader() -> "easyocr.Reader":
     global _reader
     if _reader is None:
         print("[OCR] Khởi tạo EasyOCR reader (vi + en)...")
@@ -41,7 +41,8 @@ def get_reader() -> easyocr.Reader:
 def list_input_files(folder_path: str | Path) -> list[Path]:
     """
     Liệt kê toàn bộ file hợp lệ (pdf/ảnh) trong một folder, sắp xếp theo tên.
-    Không đệ quy vào subfolder — mỗi hồ sơ là 1 folder phẳng chứa các file giấy tờ.
+    Không đệ quy vào subfolder — mỗi hồ sơ là 1 folder phẳng chứa các file giấy tờ,
+    CÓ THỂ ứng với nhiều tài sản khác nhau (vd 2 GCN + 2 bộ hợp đồng đi kèm).
     """
     folder = Path(folder_path)
     if not folder.exists() or not folder.is_dir():
@@ -122,7 +123,6 @@ def _is_native_text_sufficient(text: str, num_pages: int) -> bool:
     """PDF được coi là 'có text layer đủ dùng' nếu mật độ ký tự/trang đạt ngưỡng."""
     if num_pages <= 0:
         return False
-    # Bỏ header "--- Trang N ---" khi tính mật độ ký tự thực
     stripped_len = len(text.strip())
     return (stripped_len / num_pages) >= MIN_CHARS_PER_PAGE
 
@@ -147,11 +147,9 @@ def extract_text_hybrid(file_path: str | Path) -> tuple[str, str]:
         raise ValueError(f"Định dạng file không hỗ trợ: {suffix}")
 
     if suffix != ".pdf":
-        # Ảnh: luôn OCR
         text = ocr_image_file(file_path)
         return text, "ocr"
 
-    # PDF: thử native text trước
     native_text, num_pages = extract_pdf_native_text(file_path)
     if _is_native_text_sufficient(native_text, num_pages):
         print(

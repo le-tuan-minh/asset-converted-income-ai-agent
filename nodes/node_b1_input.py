@@ -1,21 +1,24 @@
 """
 B1 - Input Node
-Nhận folder_path chứa số lượng file bất kỳ (pdf/ảnh), với từng file:
+Nhận folder_path chứa số lượng file bất kỳ (pdf/ảnh) — CÓ THỂ ứng với NHIỀU
+tài sản khác nhau (vd 2 GCN của 2 thửa đất riêng biệt). Với từng file:
   1. Hybrid extract text (native text layer nếu có, fallback OCR nếu không).
   2. Phân loại loại giấy tờ (rule-based, fallback LLM).
-Lưu kết quả vào state.documents.
+Lưu kết quả vào state.documents. Việc GOM NHÓM file theo từng tài sản được
+thực hiện ở bước B1b (nodes/node_b1b_group_assets.py), không phải ở đây.
 
-Ràng buộc nghiệp vụ về hồ sơ đầu vào (bắt buộc):
-  - Giấy tờ nhân thân (CCCD/CMTND): BẮT BUỘC, dùng để đối chiếu chủ tài sản.
-  - Giấy chứng nhận QSDĐ (GCN): BẮT BUỘC, là căn cứ pháp lý gốc xác lập tài sản.
-    Hợp đồng mua bán / văn bản chuyển nhượng / xác nhận chuyển nhượng / hợp đồng
-    thế chấp / xác nhận thế chấp CHỈ có giá trị BỔ SUNG (đối chiếu thêm thông tin
-    biến động, mục đích sử dụng...), KHÔNG được dùng để thay thế GCN.
+Ràng buộc nghiệp vụ về hồ sơ đầu vào (bắt buộc, ở CẤP HỒ SƠ — áp dụng chung
+cho toàn bộ folder, bất kể có bao nhiêu tài sản bên trong):
+  - Giấy tờ nhân thân (CCCD/CMTND): BẮT BUỘC có ít nhất 1 file, dùng để đối
+    chiếu chủ tài sản cho MỌI tài sản trong hồ sơ.
+  - Giấy chứng nhận QSDĐ (GCN): BẮT BUỘC có ít nhất 1 file — là căn cứ pháp
+    lý gốc xác lập tài sản. Hợp đồng mua bán / văn bản chuyển nhượng / xác
+    nhận chuyển nhượng / hợp đồng thế chấp / xác nhận thế chấp CHỈ có giá trị
+    BỔ SUNG, KHÔNG được dùng để thay thế GCN.
 
-Nếu thiếu 1 trong 2 nhóm bắt buộc trên → flag ERROR và has_critical_flags=True ngay
-tại B1, để graph có thể dừng sớm (route sang human_review), không đưa dữ liệu
-thiếu/rỗng vào B2 (tránh LLM phải "so khớp" trên dữ liệu không đủ căn cứ, dẫn đến
-kết luận owner_matched sai/giả).
+Nếu thiếu 1 trong 2 nhóm bắt buộc trên → flag ERROR và has_critical_flags=True
+ngay tại B1, để graph dừng sớm (route sang human_review), không đưa dữ liệu
+thiếu/rỗng vào B1b/B2 (tránh gom nhóm/so khớp trên dữ liệu không đủ căn cứ).
 """
 from __future__ import annotations
 
@@ -82,7 +85,6 @@ def node_b1_input(state: GraphState) -> GraphState:
     for path in file_paths:
         print(f"\n[B1] --- Xử lý: {path.name} ---")
 
-        # 1) Hybrid text extraction
         try:
             text, source = extract_text_hybrid(path)
         except Exception as exc:
@@ -115,7 +117,6 @@ def node_b1_input(state: GraphState) -> GraphState:
                 affected_field=path.name,
             ))
 
-        # 2) Phân loại giấy tờ
         doc_type, confidence, method = classify_document(text, filename=path.name)
         print(f"[B1] {path.name}: phân loại = {doc_type.value} "
               f"(confidence={confidence:.2f}, method={method})")
@@ -142,50 +143,40 @@ def node_b1_input(state: GraphState) -> GraphState:
             char_count=char_count,
         ))
 
-    # ── Kiểm tra các nhóm giấy tờ bắt buộc đã có đủ chưa ────────
-    categories_present = {
-        DOCUMENT_CATEGORY_MAP[d.doc_type] for d in documents
-    }
+    # ── Kiểm tra đủ 2 nhóm giấy tờ bắt buộc ở CẤP HỒ SƠ ──────────
+    has_nhan_than = any(d.doc_type == DocumentType.CCCD for d in documents)
+    has_gcn = any(d.doc_type == DocumentType.GCN for d in documents)
 
-    # Ràng buộc nghiệp vụ: tối thiểu phải có
-    #   (1) giấy tờ nhân thân (CCCD/CMTND) để đối chiếu chủ tài sản
-    #   (2) Giấy chứng nhận QSDĐ (GCN) — căn cứ pháp lý gốc, KHÔNG được thay thế
-    #       bằng hợp đồng mua bán/văn bản chuyển nhượng. Các giấy tờ này (nếu có)
-    #       chỉ mang giá trị bổ sung/đối chiếu thêm, không đủ tự thân xác lập
-    #       quyền sử dụng đất hiện tại.
-    if "nhan_than" not in categories_present:
+    has_critical = False
+    if not has_nhan_than or not has_gcn:
+        missing = []
+        if not has_nhan_than:
+            missing.append("giấy tờ nhân thân (CCCD/CMTND)")
+        if not has_gcn:
+            missing.append("Giấy chứng nhận QSDĐ (GCN)")
+        msg = (
+            f"[B1] Hồ sơ thiếu bắt buộc: {', '.join(missing)}. "
+            "Không đủ căn cứ để gom nhóm tài sản / xác định chủ tài sản."
+        )
+        print(msg)
         flags.append(FlagItem(
             flag_type="OCR_THIEU_DU_LIEU",
             severity="ERROR",
-            description="Hồ sơ thiếu giấy tờ nhân thân (CCCD/CMTND) để đối chiếu chủ tài sản.",
-            affected_field="nhan_than",
+            description=msg,
+            affected_field="documents",
         ))
-    if "gcn" not in categories_present:
-        flags.append(FlagItem(
-            flag_type="OCR_THIEU_DU_LIEU",
-            severity="ERROR",
-            description=(
-                "Hồ sơ thiếu Giấy chứng nhận QSDĐ (GCN) — đây là giấy tờ BẮT BUỘC để "
-                "xác định tài sản. Hợp đồng mua bán/văn bản chuyển nhượng (nếu có) chỉ "
-                "có giá trị bổ sung, không thay thế được GCN."
-            ),
-            affected_field="gcn",
-        ))
+        notes.append(msg)
+        has_critical = True
+    else:
+        n_gcn = sum(1 for d in documents if d.doc_type == DocumentType.GCN)
+        print(f"[B1] Hồ sơ hợp lệ: {n_gcn} GCN được phát hiện → có thể ứng với {n_gcn} tài sản.")
+        notes.append(f"B1 hoàn thành: {len(documents)} file, phát hiện {n_gcn} GCN.")
 
-    has_critical_input = any(f.severity == "ERROR" for f in flags)
-
-    notes.append(
-        f"B1 hoàn thành: {len(documents)} file, "
-        f"nhóm giấy tờ có mặt: {sorted(categories_present)}."
-    )
-    print(f"\n[B1] Hoàn thành. {len(documents)} document(s) đã xử lý.\n")
-    if has_critical_input:
-        print("[B1] ⛔ Hồ sơ thiếu giấy tờ bắt buộc (nhan_than/gcn) — "
-              "chuyển thẳng Human Review, bỏ qua B2/B2c/B3.")
+    print("[B1] Hoàn thành.\n")
 
     return state.model_copy(update={
         "documents": documents,
         "flags": flags,
         "processing_notes": notes,
-        "has_critical_flags": has_critical_input,
+        "has_critical_flags": has_critical,
     })

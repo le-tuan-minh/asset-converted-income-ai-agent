@@ -1,6 +1,7 @@
 langgraph
 langchain
 langchain-groq
+langchain-core
 easyocr
 pdf2image
 Pillow

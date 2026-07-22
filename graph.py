@@ -1,28 +1,46 @@
 """
-LangGraph Graph definition cho luồng thẩm định tín dụng B1 → B2 → B2c → B3.
+LangGraph Graph definition — luồng thẩm định tín dụng hỗ trợ NHIỀU TÀI SẢN
+trong cùng 1 hồ sơ (folder input), với bước AI gom nhóm tài sản + xác nhận
+của con người (human-in-the-loop) trước khi chạy B2/B2c/B3 cho từng tài sản.
 
 Luồng:
-  START → b1_input → (router B1) → human_review (nếu thiếu giấy tờ bắt buộc)
-                                  → b2_verify → b2c_tmdv_websearch → b3_flag
-                                                → (router B3) → human_review | END
 
-  Router sau B1: nếu hồ sơ thiếu giấy tờ nhân thân (CCCD/CMTND) hoặc thiếu Giấy
-  chứng nhận QSDĐ (GCN) — 2 loại giấy tờ BẮT BUỘC theo nghiệp vụ — thì dừng ngay,
-  chuyển sang human_review, KHÔNG chạy B2/B2c/B3. Lý do: nếu thiếu 1 trong 2 nhóm
-  này, owner_info hoặc asset_info sẽ rỗng/không đầy đủ, đưa vào B2 sẽ khiến LLM
-  phải "so khớp" trên dữ liệu vốn không đủ căn cứ, dễ sinh kết luận owner_matched
-  sai/giả (false positive CHU_TAI_SAN_LECH), gây nhiễu báo cáo và không giúp ích
-  cho cán bộ tín dụng — bản chất vấn đề là "thiếu hồ sơ" chứ không phải "phát hiện
-  sai khác thực sự".
+  START
+    │
+    ▼
+  b1_input                     (OCR hybrid + phân loại giấy tờ — cấp hồ sơ)
+    │
+    ├─ route_after_b1: thiếu CCCD hoặc thiếu GCN ở cấp hồ sơ → human_review → END
+    │
+    ▼ (đủ điều kiện)
+  b1b_group_assets              (Reasoning AI đề xuất gom nhóm tài sản;
+                                  rule-based hỗ trợ trích số GCN/thửa đất/tờ BĐ;
+                                  nếu chỉ có 1 GCN thì bỏ qua bước gọi LLM)
+    │
+    ▼
+  b1c_confirm_grouping           (HUMAN-IN-THE-LOOP — interrupt(): dừng graph,
+                                  trả đề xuất gom nhóm ra ngoài cho cán bộ tín
+                                  dụng xác nhận hoặc chỉnh sửa, rồi resume)
+    │
+    ▼
+  b2_process_assets              (Lặp qua TỪNG tài sản đã xác nhận, chạy B2
+                                  Groq LLM extract & verify → B2c web search
+                                  TMDV nếu cần → B3 rule-based flag engine.
+                                  Documents của tài sản này được lọc riêng,
+                                  KHÔNG lẫn dữ liệu giữa các tài sản.)
+    │
+    ├─ route_after_processing: có ≥1 tài sản có flag ERROR → human_review → END
+    │
+    ▼
+  END                             (Sẵn sàng cho B4 - kiểm tra CIC TSBĐ)
 
-  b2c_tmdv_websearch là bước bổ sung: chỉ thực sự tra cứu web khi B2 (kể cả sau
-  rule-based cross-check) vẫn chưa xác định được đất TMDV có thuộc dự án hay không.
-  Các trường hợp khác, node này pass-through gần như tức thời (không tốn API call).
-
-Lưu ý LangGraph:
-  - .invoke() với Pydantic BaseModel state trả về dict (không phải model instance)
-  - Mỗi node nhận GraphState, trả về GraphState
-  - main.py sẽ convert dict → GraphState sau khi invoke
+Ghi chú kỹ thuật:
+  - Graph PHẢI được compile với 1 checkpointer (vd MemorySaver) để interrupt()/
+    Command(resume=...) hoạt động — xem build_graph(checkpointer=...).
+  - .invoke() với Pydantic BaseModel state trả về dict (không phải model
+    instance); main.py sẽ convert dict → GraphState sau khi invoke.
+  - Khi graph dừng tại interrupt, kết quả invoke() trả về sẽ chứa key
+    "__interrupt__" thay vì state đầy đủ — main.py xử lý việc này.
 """
 from __future__ import annotations
 
@@ -30,105 +48,63 @@ from langgraph.graph import StateGraph, END
 
 from schemas import GraphState
 from nodes.node_b1_input import node_b1_input
-from nodes.node_b2_verify import node_b2_verify
-from nodes.node_b2c_tmdv_websearch import node_b2c_tmdv_websearch
-from nodes.node_b3_flag import node_b3_flag
+from nodes.node_b1b_group_assets import node_b1b_group_assets
+from nodes.node_human_confirm_grouping import node_human_confirm_grouping
+from nodes.node_b2_process_assets import node_b2_process_assets
+from nodes.node_human_review import node_human_review
 
 
 def route_after_b1(state: GraphState) -> str:
     """
-    Conditional edge sau B1:
-    - Thiếu giấy tờ bắt buộc (nhan_than/GCN) hoặc lỗi input (has_critical_flags=True
-      hoặc error) → dừng lại, chuyển sang human_review ngay, KHÔNG chạy B2/B2c/B3.
-    - Đủ điều kiện → tiếp tục B2.
+    Thiếu giấy tờ bắt buộc (CCCD/CMTND hoặc GCN) ở cấp hồ sơ, hoặc lỗi input
+    → dừng ngay, sang human_review, KHÔNG chạy B1b/B1c/B2/B3.
     """
-    # Handle cả dict lẫn GraphState (LangGraph có thể pass dict giữa nodes)
-    if isinstance(state, dict):
-        has_critical = state.get("has_critical_flags", False)
-        has_error = state.get("error") is not None
-    else:
-        has_critical = state.has_critical_flags
-        has_error = state.error is not None
-
-    if has_critical or has_error:
+    if state.has_critical_flags or state.error:
         return "human_review"
     return "continue"
 
 
-def route_after_b3(state: GraphState) -> str:
-    """
-    Conditional edge sau B3:
-    - Có flag ERROR → "human_review"
-    - Không có → "end"
-    """
-    # Handle cả dict lẫn GraphState (LangGraph có thể pass dict giữa nodes)
-    if isinstance(state, dict):
-        has_critical = state.get("has_critical_flags", False)
-        has_error = state.get("error") is not None
-    else:
-        has_critical = state.has_critical_flags
-        has_error = state.error is not None
-
-    if has_critical or has_error:
+def route_after_processing(state: GraphState) -> str:
+    """Có ít nhất 1 tài sản (hoặc chính B1) có flag ERROR → human_review."""
+    if state.has_critical_flags:
         return "human_review"
     return "end"
 
 
-def node_human_review(state: GraphState) -> GraphState:
+def build_graph(checkpointer=None):
     """
-    Placeholder node: tài sản có flag nghiêm trọng (bao gồm cả trường hợp thiếu
-    giấy tờ bắt buộc ngay từ B1) → chờ cán bộ xem xét.
-    Trong production có thể gửi notification, tạo task trên hệ thống.
+    Build và compile LangGraph.
+
+    checkpointer: BẮT BUỘC truyền vào (vd langgraph.checkpoint.memory.MemorySaver())
+    nếu muốn dùng human-in-the-loop (node b1c_confirm_grouping dùng interrupt()).
+    Không truyền checkpointer, graph vẫn build được nhưng KHÔNG thể dừng/resume
+    ở bước xác nhận gom nhóm — chỉ phù hợp cho test nhanh logic B1/B1b thuần.
     """
-    print("\n" + "="*60)
-    print("🔴 HUMAN REVIEW — Hồ sơ có flag nghiêm trọng, cần xét duyệt thủ công")
-    print("="*60)
+    graph = StateGraph(GraphState)
 
-    # Handle cả dict lẫn GraphState
-    if isinstance(state, dict):
-        state = GraphState(**state)
+    graph.add_node("b1_input", node_b1_input)
+    graph.add_node("b1b_group_assets", node_b1b_group_assets)
+    graph.add_node("b1c_confirm_grouping", node_human_confirm_grouping)
+    graph.add_node("b2_process_assets", node_b2_process_assets)
+    graph.add_node("human_review", node_human_review)
 
-    notes = list(state.processing_notes)
-    notes.append("Hồ sơ được chuyển sang Human Review do có flag ERROR.")
-    return state.model_copy(update={"processing_notes": notes})
+    graph.set_entry_point("b1_input")
 
-
-def build_graph() -> StateGraph:
-    """Build và compile LangGraph StateGraph."""
-    builder = StateGraph(GraphState)
-
-    # Thêm nodes
-    builder.add_node("b1_input",            node_b1_input)
-    builder.add_node("b2_verify",           node_b2_verify)
-    builder.add_node("b2c_tmdv_websearch",  node_b2c_tmdv_websearch)
-    builder.add_node("b3_flag",             node_b3_flag)
-    builder.add_node("human_review",        node_human_review)
-
-    builder.set_entry_point("b1_input")
-
-    # Conditional edge NGAY SAU B1: dừng sớm nếu thiếu giấy tờ bắt buộc
-    builder.add_conditional_edges(
+    graph.add_conditional_edges(
         "b1_input",
         route_after_b1,
-        {
-            "human_review": "human_review",
-            "continue": "b2_verify",
-        },
+        {"human_review": "human_review", "continue": "b1b_group_assets"},
     )
+    graph.add_edge("b1b_group_assets", "b1c_confirm_grouping")
+    graph.add_edge("b1c_confirm_grouping", "b2_process_assets")
 
-    # Edges tuyến tính B2 → B2c → B3
-    builder.add_edge("b2_verify",          "b2c_tmdv_websearch")
-    builder.add_edge("b2c_tmdv_websearch", "b3_flag")
-
-    # Conditional edge sau B3
-    builder.add_conditional_edges(
-        "b3_flag",
-        route_after_b3,
-        {
-            "human_review": "human_review",
-            "end": END,
-        },
+    graph.add_conditional_edges(
+        "b2_process_assets",
+        route_after_processing,
+        {"human_review": "human_review", "end": END},
     )
-    builder.add_edge("human_review", END)
+    graph.add_edge("human_review", END)
 
-    return builder.compile()
+    if checkpointer is not None:
+        return graph.compile(checkpointer=checkpointer)
+    return graph.compile()

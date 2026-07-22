@@ -1,9 +1,11 @@
 """
-Main entrypoint — chạy luồng thẩm định B1→B2→B3.
+Main entrypoint — chạy luồng thẩm định B1 → B1b (AI gom nhóm tài sản) →
+B1c (human-in-the-loop xác nhận) → B2 → B2c → B3 cho TỪNG tài sản.
 
 Cách chạy:
     python main.py
-    python main.py --folder input_data/test_input_1
+    python main.py --folder input_data/test_input_multi
+    python main.py --folder input_data/test_input_multi --auto-confirm   (bỏ qua hỏi, tự xác nhận AI)
 """
 from __future__ import annotations
 import argparse
@@ -13,96 +15,202 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env (GROQ_API_KEY)
 load_dotenv()
+
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.types import Command
 
 from schemas import GraphState
 from graph import build_graph
 
+# GraphState chứa các Pydantic model + Enum tự định nghĩa trong schemas.py
+# (DocumentType, DocumentItem, AssetGroupCandidate, AssetResult, ...). Vì
+# node B1c dùng interrupt(), toàn bộ state phải được checkpoint (msgpack) mỗi
+# lần dừng/resume. Không khai báo allowed_msgpack_modules sẽ chỉ ra warning ở
+# bản LangGraph hiện tại, nhưng THEO TÀI LIỆU sẽ bị CHẶN CỨNG (raise lỗi) ở
+# bản tương lai — nên khai báo tường minh ngay từ bây giờ.
+_ALLOWED_MSGPACK_MODULES = [
+    ("schemas", "DocumentType"),
+    ("schemas", "DocumentItem"),
+    ("schemas", "AssetGroupCandidate"),
+    ("schemas", "AssetResult"),
+    ("schemas", "OwnerInfo"),
+    ("schemas", "AssetInfo"),
+    ("schemas", "BienDongItem"),
+    ("schemas", "IdentityCheckResult"),
+    ("schemas", "LandPurposeResult"),
+    ("schemas", "FlagItem"),
+]
+
+
+# ─────────────────────────────────────────────
+# Human-in-the-loop: hỏi cán bộ tín dụng xác nhận/chỉnh sửa nhóm tài sản
+# ─────────────────────────────────────────────
+
+def _print_grouping_proposal(payload: dict) -> None:
+    print("\n" + "=" * 60)
+    print("🧑‍💼  CẦN XÁC NHẬN: AI ĐỀ XUẤT GOM NHÓM TÀI SẢN")
+    print("=" * 60)
+    print(payload.get("message", ""))
+    for g in payload.get("asset_groups", []):
+        print(f"\n  📌 {g['asset_id']}  (độ tin cậy: {g['grouping_confidence']:.2f}, "
+              f"phương pháp: {g['grouping_method']})")
+        print(f"     Số GCN gợi ý : {g['so_gcn_goi_y'] or 'N/A'}")
+        print(f"     Địa chỉ gợi ý: {g['dia_chi_goi_y'] or 'N/A'}")
+        print(f"     File riêng   : {g['filenames']}")
+        print(f"     File dùng chung (CCCD): {g['shared_filenames']}")
+        print(f"     Lý do AI gom : {g['grouping_reason'] or 'N/A'}")
+
+
+def _ask_human_confirmation(payload: dict, auto_confirm: bool = False) -> dict:
+    """
+    Console-based human-in-the-loop. Trả về dict theo đúng format node
+    node_human_confirm_grouping mong đợi: {"action": "confirm"} hoặc
+    {"action": "edit", "asset_groups": [...], "note": "..."}.
+    """
+    _print_grouping_proposal(payload)
+
+    if auto_confirm:
+        print("\n[--auto-confirm] Tự động xác nhận theo đề xuất của AI (không hỏi).")
+        return {"action": "confirm"}
+
+    print("\nCán bộ tín dụng vui lòng kiểm tra lại việc gom nhóm ở trên.")
+    choice = input("Xác nhận đề xuất của AI? (Enter/'ok' = xác nhận, 'edit' = chỉnh sửa thủ công): ").strip().lower()
+
+    if choice not in ("edit",):
+        return {"action": "confirm"}
+
+    print("\n--- CHỈNH SỬA NHÓM TÀI SẢN THỦ CÔNG ---")
+    print("Nhập lại danh sách nhóm. Với mỗi nhóm, liệt kê các file (phân cách bằng dấu phẩy).")
+    print("Để trống tên nhóm khi được hỏi để dừng nhập.")
+
+    edited_groups = []
+    shared_filenames = payload["asset_groups"][0]["shared_filenames"] if payload["asset_groups"] else []
+    idx = 1
+    while True:
+        asset_id = input(f"Tên tài sản #{idx} (Enter để dừng): ").strip()
+        if not asset_id:
+            break
+        filenames_raw = input(f"  Danh sách file thuộc '{asset_id}' (vd: gcn_1.pdf,hop_dong_1.pdf): ").strip()
+        filenames = [f.strip() for f in filenames_raw.split(",") if f.strip()]
+        so_gcn = input("  Số GCN (tuỳ chọn): ").strip()
+        edited_groups.append({
+            "asset_id": asset_id,
+            "so_gcn_goi_y": so_gcn,
+            "dia_chi_goi_y": "",
+            "filenames": filenames,
+            "shared_filenames": shared_filenames,
+            "grouping_method": "human_edited",
+            "grouping_confidence": 1.0,
+            "grouping_reason": "Cán bộ tín dụng nhập thủ công.",
+        })
+        idx += 1
+
+    note = input("Ghi chú lý do chỉnh sửa (tuỳ chọn): ").strip()
+    return {"action": "edit", "asset_groups": edited_groups, "note": note}
+
+
+# ─────────────────────────────────────────────
+# Báo cáo kết quả
+# ─────────────────────────────────────────────
 
 def print_report(final_state: GraphState) -> None:
-    """In báo cáo kết quả ra console."""
     print("\n" + "=" * 60)
-    print("📋  KẾT QUẢ THẨM ĐỊNH TÀI SẢN BẢO ĐẢM")
+    print("📋  KẾT QUẢ THẨM ĐỊNH TÀI SẢN BẢO ĐẢM (NHIỀU TÀI SẢN)")
     print("=" * 60)
 
-    # Danh sách file đã OCR + phân loại (B1)
     print(f"\n📂 GIẤY TỜ ĐÃ NHẬN DIỆN ({len(final_state.documents)} file)")
-    if not final_state.documents:
-        print("   Không có file nào được xử lý.")
     for d in final_state.documents:
         print(
             f"   • {d.filename:30s} → {d.doc_type.value:28s} "
-            f"[{d.extraction_source or 'N/A':11s} | "
-            f"{d.classify_method}/{d.classify_confidence:.2f} | "
-            f"{d.char_count} ký tự]"
+            f"[{d.extraction_source or 'N/A':11s} | {d.classify_method}/{d.classify_confidence:.2f} | {d.char_count} ký tự]"
         )
 
-    # Thông tin chủ tài sản
-    oi = final_state.owner_info
-    print(f"\n👤 CHỦ TÀI SẢN (từ CCCD)")
-    print(f"   Họ tên         : {oi.ho_ten or 'N/A'}")
-    print(f"   Số CCCD        : {oi.so_cccd or 'N/A'}")
-    print(f"   Số CMTND cũ    : {oi.so_cmtnd_cu or 'N/A'}")
-    print(f"   Ngày sinh       : {oi.ngay_sinh or 'N/A'}")
-    print(f"   Địa chỉ TT     : {oi.dia_chi_thuong_tru or 'N/A'}")
+    print(f"\n🗂️  NHÓM TÀI SẢN ĐÃ XÁC NHẬN ({len(final_state.asset_groups)} tài sản)")
+    for g in final_state.asset_groups:
+        print(f"   • {g.asset_id}: {g.filenames} (+ dùng chung: {g.shared_filenames})")
 
-    # Thông tin tài sản
-    ai = final_state.asset_info
-    print(f"\n🏠 TÀI SẢN BẢO ĐẢM (từ GCN + văn bản chuyển nhượng/thế chấp)")
-    print(f"   Số GCN              : {ai.so_gcn or 'N/A'}")
-    print(f"   Chủ sử dụng GỐC     : {ai.chu_su_dung_goc or 'N/A'}")
-    print(f"   Chủ sử dụng HIỆN TẠI: {ai.chu_su_dung_hien_tai or 'N/A'}")
-    print(f"   Ngày cấp GCN        : {ai.ngay_cap_gcn or 'N/A'}")
-    print(f"   Ngày CN gần nhất    : {ai.ngay_chuyen_nhuong or 'N/A'}")
-    print(f"   Mục đích SD         : {ai.muc_dich_su_dung or 'N/A'}")
-    print(f"   DT tổng             : {ai.dien_tich_tong or 'N/A'} m²")
-    print(f"   DT đất ở            : {ai.dien_tich_dat_o or 'N/A'} m²")
-    print(f"   DT nhà ở            : {ai.dien_tich_nha_o or 'N/A'} m²")
-    print(f"   DT NN               : {ai.dien_tich_nn or 'N/A'} m²")
-    print(f"   DT NTS (thủy sản)   : {ai.dien_tich_nts or 'N/A'} m²")
-    print(f"   DT TMDV             : {ai.dien_tich_tmdv or 'N/A'} m²")
-    print(f"   Nguồn gốc           : {ai.nguon_goc_tai_san or 'N/A'}")
+    print(f"\n🏠 KẾT QUẢ TỪNG TÀI SẢN ({len(final_state.asset_results)} tài sản)")
+    for r in final_state.asset_results:
+        oi, ai, ic, lp = r.owner_info, r.asset_info, r.identity_check, r.land_purpose
+        status = "🔴 Cần rà soát" if r.has_critical_flags else "🟢 Ổn"
+        print(f"\n   ─── {r.asset_id} [{status}] ───")
+        print(f"   File                    : {r.document_filenames}")
 
-    if ai.bien_dong_lich_su:
-        print(f"\n📜 LỊCH SỬ BIẾN ĐỘNG ({len(ai.bien_dong_lich_su)} lần)")
-        for i, bd in enumerate(ai.bien_dong_lich_su, 1):
-            print(f"   {i}. [{bd.ngay or 'N/A'}] {bd.noi_dung or 'N/A'}")
-            print(f"      → Chủ mới: {bd.chu_moi or 'N/A'}")
-    else:
-        print(f"\n📜 LỊCH SỬ BIẾN ĐỘNG: Không có (GCN chưa từng biến động)")
+        print(f"\n   👤 CHỦ TÀI SẢN (từ CCCD)")
+        print(f"      Họ tên               : {oi.ho_ten or 'N/A'}")
+        print(f"      Số CCCD              : {oi.so_cccd or 'N/A'}")
+        print(f"      Số CMTND cũ          : {oi.so_cmtnd_cu or 'N/A'}")
+        print(f"      Ngày sinh            : {oi.ngay_sinh or 'N/A'}")
+        print(f"      Địa chỉ thường trú   : {oi.dia_chi_thuong_tru or 'N/A'}")
 
-    # Kết quả B2
-    ic = final_state.identity_check
-    lp = final_state.land_purpose
-    print(f"\n🔍 KẾT QUẢ KIỂM TRA")
-    print(f"   Chủ TS khớp CCCD  : {'✅ Có' if ic.owner_matched else '❌ Không'}")
-    matched_label = {
-        "chu_hien_tai": "chủ sử dụng HIỆN TẠI (sau biến động)",
-        "chu_goc": "chủ sử dụng GỐC (chưa từng biến động)",
-        "khong_ro": "không xác định",
-    }.get(ic.matched_against, "không xác định")
-    print(f"   Khớp với          : {matched_label}")
-    print(f"   Tặng cho/TK       : {'⚠️ Có' if (ic.is_tang_cho or ic.is_thua_ke) else '✅ Không'}")
-    print(f"   Ngày hình thành   : {ic.asset_formation_date or 'N/A'}")
-    print(f"   DT đủ đk quy đổi : {lp.dien_tich_du_dieu_kien or 'N/A'} m²")
+        print(f"\n   🏠 THÔNG TIN TÀI SẢN (GCN + Hợp đồng)")
+        print(f"      Số GCN               : {ai.so_gcn or 'N/A'}")
+        print(f"      Địa chỉ tài sản      : {ai.dia_chi_tai_san or 'N/A'}")
+        print(f"      Chủ SD gốc           : {ai.chu_su_dung_goc or 'N/A'}")
+        print(f"      Chủ SD hiện tại      : {ai.chu_su_dung_hien_tai or 'N/A'}")
+        print(f"      Ngày cấp GCN         : {ai.ngay_cap_gcn or 'N/A'}")
+        print(f"      Ngày chuyển nhượng   : {ai.ngay_chuyen_nhuong or 'N/A'}")
+        print(f"      Nguồn gốc tài sản    : {ai.nguon_goc_tai_san or 'N/A'}")
+        print(f"      Có tặng cho          : {'Có' if ai.co_thong_tin_tang_cho else 'Không'}")
+        if ai.bien_dong_lich_su:
+            print(f"      Lịch sử biến động    :")
+            for bd in ai.bien_dong_lich_su:
+                print(f"        - {bd.ngay or 'N/A'}: {bd.noi_dung or 'N/A'} (chủ mới: {bd.chu_moi or 'N/A'})")
+        print(f"      Bên mua (hợp đồng)   : {ai.ben_mua_hop_dong or 'N/A'} (CCCD: {ai.ben_mua_so_cccd_hop_dong or 'N/A'})")
+        print(f"      Bên bán (hợp đồng)   : {ai.ben_ban_hop_dong or 'N/A'}")
 
-    # Flags
-    print(f"\n🚩 FLAGS & CẢNH BÁO ({len(final_state.flags)} flag(s))")
-    if not final_state.flags:
-        print("   Không có flag.")
-    for f in final_state.flags:
-        icon = "⛔" if f.severity == "ERROR" else "⚠️"
-        print(f"   {icon} [{f.flag_type}] {f.description}")
+        print(f"\n   📐 DIỆN TÍCH")
+        print(f"      Tổng                 : {ai.dien_tich_tong or 'N/A'} m²")
+        print(f"      Đất ở                : {ai.dien_tich_dat_o or 'N/A'} m²")
+        print(f"      Nhà ở                : {ai.dien_tich_nha_o or 'N/A'} m²")
+        print(f"      Nông nghiệp (NN)     : {ai.dien_tich_nn or 'N/A'} m²")
+        print(f"      Nuôi trồng TS (NTS)  : {ai.dien_tich_nts or 'N/A'} m²")
+        print(f"      Thương mại DV (TMDV) : {ai.dien_tich_tmdv or 'N/A'} m²")
+        print(f"      ĐỦ ĐIỀU KIỆN QUY ĐỔI : {lp.dien_tich_du_dieu_kien or 'N/A'} m² (= đất ở + nhà ở, tính tất định)")
 
-    # Warnings
-    if final_state.warnings:
-        print(f"\n⚠️  WARNINGS")
-        for w in final_state.warnings:
-            print(f"   {w}")
+        print(f"\n   🧾 MỤC ĐÍCH SỬ DỤNG ĐẤT")
+        print(f"      Mục đích             : {lp.muc_dich or ai.muc_dich_su_dung or 'N/A'}")
+        print(f"      Mã ký hiệu đất       : {lp.ma_ky_hieu_dat or ai.ma_ky_hieu_dat or 'N/A'}")
+        print(f"      Là đất TMDV          : {'Có' if lp.is_tmdv else 'Không'}")
+        if lp.is_tmdv:
+            print(f"      Thuộc dự án          : {lp.thuoc_du_an if lp.thuoc_du_an is not None else 'Chưa xác định'}")
+            print(f"      Tên dự án            : {lp.ten_du_an or 'N/A'}")
+            print(f"      Căn cứ pháp lý DA    : {lp.can_cu_phap_ly_du_an or 'N/A'}")
+            print(f"      Nguồn xác định DA    : {lp.nguon_xac_dinh_du_an}")
+            if lp.warning_tmdv:
+                print(f"      Cảnh báo TMDV        : {lp.warning_tmdv}")
+            if lp.web_verification_summary:
+                print(f"      Tóm tắt tra cứu web  : {lp.web_verification_summary}")
+                print(f"      Nguồn web            : {lp.web_verification_sources}")
 
-    # Routing
-    print(f"\n🔀 ROUTING")
+        print(f"\n   🔎 KIỂM TRA CHỦ TÀI SẢN")
+        print(f"      Khớp CCCD            : {'✅ Có' if ic.owner_matched else '❌ Không'} (so với: {ic.matched_against})")
+        if ic.mismatch_fields:
+            print(f"      Trường lệch          : {ic.mismatch_fields}")
+        print(f"      Tặng cho / thừa kế   : tặng cho={ic.is_tang_cho}, thừa kế={ic.is_thua_ke}")
+        print(f"      Ngày hình thành (LLM): {ic.asset_formation_date or 'N/A'} — {ic.asset_formation_note or ''}")
+
+        print(f"\n   🚩 FLAGS ({len(r.flags)})")
+        for f in r.flags:
+            icon = "⛔" if f.severity == "ERROR" else "⚠️"
+            print(f"      {icon} [{f.flag_type}] {f.description}")
+
+        if r.warnings:
+            print(f"\n   ⚠️  CẢNH BÁO CHO CÁN BỘ TÍN DỤNG")
+            for w in r.warnings:
+                print(f"      {w}")
+
+        if r.processing_notes:
+            print(f"\n   📝 GHI CHÚ XỬ LÝ (debug)")
+            for n in r.processing_notes:
+                print(f"      {n}")
+
+        if r.error:
+            print(f"\n   ❌ Lỗi xử lý: {r.error}")
+
+    print(f"\n🔀 ROUTING TỔNG THỂ")
     status = "🔴 Human Review" if final_state.has_critical_flags else "🟢 Tiếp tục quy trình (B4)"
     print(f"   Kết quả: {status}")
 
@@ -122,36 +230,49 @@ def save_output(final_state: GraphState, output_path: str = "output/result.json"
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Thẩm định tín dụng AI Agent B1-B3")
+    parser = argparse.ArgumentParser(description="Thẩm định tín dụng AI Agent — hỗ trợ nhiều tài sản")
     parser.add_argument(
         "--folder",
         default="input_data/test_input_1",
-        help="Folder chứa các file giấy tờ đầu vào (số lượng file bất kỳ: pdf/jpg/png/...)",
+        help="Folder chứa các file giấy tờ đầu vào (số lượng file bất kỳ: pdf/jpg/png/...); "
+             "có thể chứa NHIỀU tài sản (nhiều GCN).",
     )
     parser.add_argument("--output", default="output/result.json")
+    parser.add_argument(
+        "--auto-confirm", action="store_true",
+        help="Bỏ qua bước hỏi console, tự động xác nhận đề xuất gom nhóm của AI "
+             "(dùng cho test tự động — KHÔNG khuyến khích dùng trong môi trường thật).",
+    )
+    parser.add_argument(
+        "--thread-id", default="cli-session",
+        help="Thread ID cho checkpointer LangGraph (mỗi hồ sơ nên có 1 thread_id riêng).",
+    )
     args = parser.parse_args()
 
     if not os.getenv("GROQ_API_KEY"):
-        print("❌ GROQ_API_KEY chưa được set. Tạo file .env với GROQ_API_KEY=<key>")
+        print("❌ GROQ_API_KEY chưa được set.")
         sys.exit(1)
 
-    # Khởi tạo state ban đầu
+    checkpointer = MemorySaver(
+        serde=JsonPlusSerializer(allowed_msgpack_modules=_ALLOWED_MSGPACK_MODULES)
+    )
+    graph = build_graph(checkpointer=checkpointer)
+    config = {"configurable": {"thread_id": args.thread_id}}
+
     initial_state = GraphState(input_folder=args.folder)
 
-    print(f"\n🚀 Bắt đầu luồng thẩm định")
-    print(f"   Folder input : {args.folder}")
+    result = graph.invoke(initial_state, config=config)
 
-    # Build và chạy graph
-    graph = build_graph()
-    raw_result = graph.invoke(initial_state)
-    # LangGraph trả về dict (channel values), không phải instance GraphState gốc,
-    # nên cần convert lại để dùng attribute access (final_state.owner_info, ...)
-    final_state = GraphState.model_validate(raw_result)
+    # ── Xử lý interrupt (human-in-the-loop xác nhận gom nhóm tài sản) ────
+    while "__interrupt__" in result:
+        interrupt_obj = result["__interrupt__"][0]
+        payload = interrupt_obj.value
+        human_response = _ask_human_confirmation(payload, auto_confirm=args.auto_confirm)
+        result = graph.invoke(Command(resume=human_response), config=config)
 
-    # In báo cáo
+    final_state = GraphState(**result)
+
     print_report(final_state)
-
-    # Lưu output
     save_output(final_state, args.output)
 
 

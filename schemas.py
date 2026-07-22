@@ -1,5 +1,21 @@
 """
-Schemas: GraphState và các domain model cho luồng thẩm định tín dụng B1-B3.
+Schemas: GraphState và các domain model cho luồng thẩm định tín dụng.
+
+CẬP NHẬT (multi-asset): hồ sơ khách hàng có thể chứa NHIỀU tài sản bảo đảm
+(ví dụ 2 Giấy chứng nhận QSDĐ tương ứng 2 thửa đất khác nhau trong cùng 1
+folder input). Toàn bộ pipeline được tổ chức lại theo 2 cấp:
+
+  Cấp HỒ SƠ (folder)  : GraphState — chứa danh sách file đã OCR (documents),
+                         danh sách nhóm tài sản đề xuất (asset_groups) và kết
+                         quả xử lý từng tài sản (asset_results).
+  Cấp TÀI SẢN (asset) : AssetResult — tương đương với "state cũ" (owner_info,
+                         asset_info, identity_check, land_purpose, flags,
+                         warnings, has_critical_flags) nhưng scope theo 1
+                         tài sản/1 GCN duy nhất.
+
+Việc "tài sản nào gồm những file nào" được xác định qua bước B1b (AI gom
+nhóm tài sản — Reasoning AI) và LUÔN được xác nhận lại bởi con người (human-
+in-the-loop) trước khi hệ thống chạy tiếp B2/B2c/B3 cho từng tài sản.
 """
 from __future__ import annotations
 from enum import Enum
@@ -10,13 +26,10 @@ from pydantic import BaseModel, Field, field_validator
 # ─────────────────────────────────────────────
 # Helper: coerce diện tích dạng number → string
 # ─────────────────────────────────────────────
-# Groq LLM (llama-3.3-70b-versatile) đôi khi trả field diện tích dạng number
-# (vd 154.1, hoặc 0 khi trống) thay vì string, dù prompt đã yêu cầu string.
-# Vì Pydantic v2 reject NGUYÊN CẢ object khi 1 field sai kiểu (không chỉ field
-# đó), lỗi này trước đây làm mất luôn các field khác của cùng object đã được
-# LLM trích xuất ĐÚNG (vd ten_du_an, can_cu_phap_ly_du_an, muc_dich_su_dung,
-# thuoc_du_an...) → hệ thống tưởng nhầm là "LLM bỏ sót thông tin" trong khi
-# thực chất LLM đã đọc đúng, chỉ là kiểu dữ liệu bị Pydantic reject.
+# Groq LLM đôi khi trả field diện tích dạng number (vd 154.1, hoặc 0 khi
+# trống) thay vì string, dù prompt đã yêu cầu string. Vì Pydantic v2 reject
+# NGUYÊN CẢ object khi 1 field sai kiểu (không chỉ field đó), lỗi này có thể
+# làm mất luôn các field khác của cùng object đã được LLM trích xuất ĐÚNG.
 # Coerce tại đây để mọi field khác trong object không bị ảnh hưởng.
 def _coerce_numeric_to_str(v):
     if isinstance(v, bool):
@@ -27,6 +40,37 @@ def _coerce_numeric_to_str(v):
             return str(int(v))
         return str(v)
     return v
+
+
+# ─────────────────────────────────────────────
+# Helper: coerce giá trị Literal "dễ vỡ" do LLM trả tự do
+# ─────────────────────────────────────────────
+# Cùng vấn đề như _coerce_numeric_to_str ở trên: Pydantic v2 reject NGUYÊN CẢ
+# object khi CHỈ 1 field Literal sai giá trị (vd LLM trả nhầm câu trả lời khác
+# vào field enum). Coerce về giá trị mặc định an toàn TRƯỚC khi Pydantic
+# validate, để các field khác trong cùng object không bị mất theo.
+
+_NGUON_XAC_DINH_DU_AN_ALLOWED = {"ho_so_noi_bo", "rule_based_signal", "web_search", "chua_xac_dinh"}
+
+
+def _coerce_nguon_xac_dinh_du_an(v):
+    if v in _NGUON_XAC_DINH_DU_AN_ALLOWED:
+        return v
+    return "chua_xac_dinh"
+
+
+_MATCHED_AGAINST_ALLOWED = {"chu_hien_tai", "chu_goc", "khong_ro"}
+
+
+def _coerce_matched_against(v):
+    s = str(v or "").strip().lower()
+    if s in _MATCHED_AGAINST_ALLOWED:
+        return s
+    if "hien" in s:
+        return "chu_hien_tai"
+    if "goc" in s:
+        return "chu_goc"
+    return "khong_ro"
 
 
 # ─────────────────────────────────────────────
@@ -57,6 +101,14 @@ DOCUMENT_CATEGORY_MAP: dict[DocumentType, str] = {
     DocumentType.KHONG_XAC_DINH: "khac",
 }
 
+# Loại giấy tờ được coi là "định danh 1 tài sản" (mỗi file thuộc nhóm này,
+# về nguyên tắc, là căn cứ pháp lý gốc của 1 thửa đất/tài sản riêng biệt).
+ASSET_DEFINING_DOC_TYPES: set[DocumentType] = {DocumentType.GCN}
+
+# Loại giấy tờ "dùng chung" cho toàn bộ hồ sơ khách hàng (không gắn với 1
+# tài sản cụ thể) — CCCD/CMTND của chủ tài sản.
+SHARED_DOC_TYPES: set[DocumentType] = {DocumentType.CCCD}
+
 
 class DocumentItem(BaseModel):
     """Một file input sau khi đã OCR (hybrid) và phân loại."""
@@ -71,7 +123,7 @@ class DocumentItem(BaseModel):
 
 
 # ─────────────────────────────────────────────
-# Domain models (kết quả B2)
+# Domain models (kết quả B2, theo TỪNG tài sản)
 # ─────────────────────────────────────────────
 
 class OwnerInfo(BaseModel):
@@ -147,6 +199,12 @@ class IdentityCheckResult(BaseModel):
     asset_formation_date: str = ""
     asset_formation_note: str = ""
 
+    # ── Coerce giá trị Literal (xem _coerce_matched_against ở đầu file) ──
+    @field_validator("matched_against", mode="before")
+    @classmethod
+    def _validate_matched_against(cls, v):
+        return _coerce_matched_against(v)
+
 
 class LandPurposeResult(BaseModel):
     """Kết quả phân loại mục đích sử dụng đất."""
@@ -175,6 +233,17 @@ class LandPurposeResult(BaseModel):
     def _validate_dien_tich_du_dieu_kien(cls, v):
         return _coerce_numeric_to_str(v)
 
+    # ── Coerce giá trị Literal (xem _coerce_nguon_xac_dinh_du_an ở đầu file) ──
+    # Đây chính là bug thực tế đã gặp: LLM trả nhầm "Giấy chứng nhận quyền sử
+    # dụng đất" vào field này thay vì 1 trong 4 giá trị enum, khiến TOÀN BỘ
+    # LandPurposeResult (kể cả các field đã trích xuất đúng khác) bị Pydantic
+    # reject và rơi về default rỗng. Coerce tại đây để lỗi chỉ giới hạn ở
+    # đúng field này.
+    @field_validator("nguon_xac_dinh_du_an", mode="before")
+    @classmethod
+    def _validate_nguon_xac_dinh_du_an(cls, v):
+        return _coerce_nguon_xac_dinh_du_an(v)
+
 
 class FlagItem(BaseModel):
     """Một cờ cảnh báo trong hệ thống."""
@@ -192,6 +261,10 @@ class FlagItem(BaseModel):
         "DIEN_TICH_KHONG_KHOP",
         "OCR_THIEU_DU_LIEU",
         "PHAN_LOAI_GIAY_TO_KHONG_XAC_DINH",
+        # ── Flags mới liên quan tới gom nhóm nhiều tài sản (multi-asset) ──
+        "GOM_NHOM_TAI_SAN_DO_TIN_CAY_THAP",   # AI gom nhóm với confidence thấp, cần người xác nhận kỹ
+        "GOM_NHOM_TAI_SAN_CON_FILE_LE",        # Có file không gán được vào tài sản nào
+        "GOM_NHOM_TAI_SAN_DA_CHINH_SUA",       # Cán bộ đã chỉnh sửa nhóm do AI đề xuất
     ]
     severity: Literal["WARNING", "ERROR"] = "WARNING"
     description: str = ""
@@ -199,7 +272,46 @@ class FlagItem(BaseModel):
 
 
 # ─────────────────────────────────────────────
-# LangGraph State
+# Multi-asset grouping (B1b) — AI đề xuất, con người xác nhận
+# ─────────────────────────────────────────────
+
+class AssetGroupCandidate(BaseModel):
+    """
+    Một nhóm tài sản được đề xuất (trước hoặc sau khi con người xác nhận).
+    Mỗi nhóm tương ứng với 1 tài sản bảo đảm độc lập (thường gắn với 1 GCN).
+    """
+    asset_id: str = ""                     # "asset_1", "asset_2"... — do hệ thống tự sinh
+    so_gcn_goi_y: str = ""                 # Số GCN suy đoán được (nếu đọc được từ raw_text)
+    dia_chi_goi_y: str = ""                # Địa chỉ/thửa đất suy đoán được, giúp người xác nhận dễ phân biệt
+    filenames: list[str] = Field(default_factory=list)   # Danh sách file (GCN + hợp đồng/thế chấp liên quan)
+    shared_filenames: list[str] = Field(default_factory=list)  # File dùng chung (CCCD) — không thuộc riêng nhóm này
+    grouping_method: Literal["rule_based", "llm", "human_edited", "fallback_single"] = "rule_based"
+    grouping_confidence: float = 0.0
+    grouping_reason: str = ""              # Giải thích ngắn gọn vì sao gom các file này lại 1 nhóm
+
+
+class AssetResult(BaseModel):
+    """
+    Kết quả xử lý B2 → B2c → B3 cho MỘT tài sản (tương đương "state cũ" khi
+    hệ thống chỉ xử lý 1 tài sản/hồ sơ).
+    """
+    asset_id: str = ""
+    document_filenames: list[str] = Field(default_factory=list)  # File thuộc tài sản này (đã gồm cả file dùng chung)
+
+    owner_info: OwnerInfo = Field(default_factory=OwnerInfo)
+    asset_info: AssetInfo = Field(default_factory=AssetInfo)
+    identity_check: IdentityCheckResult = Field(default_factory=IdentityCheckResult)
+    land_purpose: LandPurposeResult = Field(default_factory=LandPurposeResult)
+
+    flags: list[FlagItem] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    has_critical_flags: bool = False
+    processing_notes: list[str] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
+# ─────────────────────────────────────────────
+# LangGraph State (cấp HỒ SƠ — có thể chứa nhiều tài sản)
 # ─────────────────────────────────────────────
 
 class GraphState(BaseModel):
@@ -209,23 +321,28 @@ class GraphState(BaseModel):
     """
     model_config = {"arbitrary_types_allowed": True}
 
-    # Input: một folder chứa số lượng file bất kỳ (pdf/ảnh)
+    # Input: một folder chứa số lượng file bất kỳ (pdf/ảnh), có thể ứng với NHIỀU tài sản
     input_folder: str = "input_data/test_input_1"
 
-    # B1: danh sách file sau khi OCR (hybrid) + phân loại
+    # B1: danh sách file sau khi OCR (hybrid) + phân loại — cấp HỒ SƠ, dùng chung
     documents: list[DocumentItem] = Field(default_factory=list)
 
-    # B2: Parsed entities
-    owner_info: OwnerInfo = Field(default_factory=OwnerInfo)
-    asset_info: AssetInfo = Field(default_factory=AssetInfo)
-    identity_check: IdentityCheckResult = Field(default_factory=IdentityCheckResult)
-    land_purpose: LandPurposeResult = Field(default_factory=LandPurposeResult)
+    # B1b: AI đề xuất gom nhóm tài sản (Reasoning AI, có rule-based hỗ trợ)
+    asset_groups: list[AssetGroupCandidate] = Field(default_factory=list)
 
-    # B3: Flags & warnings
+    # Human-in-the-loop: xác nhận/chỉnh sửa gom nhóm trước khi chạy B2-B3
+    grouping_confirmed: bool = False
+    grouping_human_notes: str = ""
+
+    # B2 → B2c → B3: kết quả xử lý cho TỪNG tài sản sau khi nhóm đã được xác nhận
+    asset_results: list[AssetResult] = Field(default_factory=list)
+
+    # Flags/warnings CẤP HỒ SƠ (không gắn riêng 1 tài sản) — vd lỗi B1, lỗi gom nhóm.
+    # Flags cấp tài sản nằm trong từng AssetResult.flags ở trên.
     flags: list[FlagItem] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
-    # Routing
+    # Routing — True nếu B1 lỗi HOẶC bất kỳ tài sản nào có flag ERROR
     has_critical_flags: bool = False
     processing_notes: list[str] = Field(default_factory=list)
     error: Optional[str] = None
