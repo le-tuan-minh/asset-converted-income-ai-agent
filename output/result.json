@@ -1,8 +1,8 @@
 {
-  "input_folder": "input_data/test_input_multi_asset",
+  "input_folder": "input_data/test_input_2_tmdv_websearch",
   "documents": [
     {
-      "path": "input_data\\test_input_multi_asset\\cccd_kh.jpg",
+      "path": "input_data\\test_input_2_tmdv_websearch\\cccd_kh.jpg",
       "filename": "cccd_kh.jpg",
       "doc_type": "CCCD",
       "classify_method": "rule",
@@ -11,72 +11,39 @@
       "char_count": 488
     },
     {
-      "path": "input_data\\test_input_multi_asset\\gcn_b.pdf",
-      "filename": "gcn_b.pdf",
+      "path": "input_data\\test_input_2_tmdv_websearch\\giay_chung_nhan-v3.pdf",
+      "filename": "giay_chung_nhan-v3.pdf",
       "doc_type": "GCN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 2131
+      "char_count": 2468
     },
     {
-      "path": "input_data\\test_input_multi_asset\\giay_chung_nhan.pdf",
-      "filename": "giay_chung_nhan.pdf",
-      "doc_type": "GCN",
-      "classify_method": "rule",
-      "classify_confidence": 1.0,
-      "extraction_source": "native_text",
-      "char_count": 2458
-    },
-    {
-      "path": "input_data\\test_input_multi_asset\\hdcn_b.pdf",
-      "filename": "hdcn_b.pdf",
+      "path": "input_data\\test_input_2_tmdv_websearch\\hop_dong_mua_ban-v3.pdf",
+      "filename": "hop_dong_mua_ban-v3.pdf",
       "doc_type": "HOP_DONG_MUA_BAN",
       "classify_method": "rule",
       "classify_confidence": 1.0,
       "extraction_source": "native_text",
-      "char_count": 4224
-    },
-    {
-      "path": "input_data\\test_input_multi_asset\\hop_dong_mua_ban-v2.pdf",
-      "filename": "hop_dong_mua_ban-v2.pdf",
-      "doc_type": "HOP_DONG_MUA_BAN",
-      "classify_method": "rule",
-      "classify_confidence": 1.0,
-      "extraction_source": "native_text",
-      "char_count": 4158
+      "char_count": 4169
     }
   ],
   "asset_groups": [
     {
       "asset_id": "asset_1",
-      "so_gcn_goi_y": "ĐN 654321",
-      "dia_chi_goi_y": "Golden Hills City - Khu A, xã Hòa Liên, huyện Hòa Vang, Thành phố Đà Nẵng",
+      "so_gcn_goi_y": "cấp",
+      "dia_chi_goi_y": "Thửa 0000, Tờ BĐ 01",
       "filenames": [
-        "gcn_b.pdf",
-        "hdcn_b.pdf"
+        "giay_chung_nhan-v3.pdf",
+        "hop_dong_mua_ban-v3.pdf"
       ],
       "shared_filenames": [
         "cccd_kh.jpg"
       ],
-      "grouping_method": "llm",
-      "grouping_confidence": 0.9,
-      "grouping_reason": "Cùng số thửa 1, tờ bản đồ B2-37, cùng nhắc tên bên bán Trần Đình Khoa và bên mua Nguyễn Minh Tuấn"
-    },
-    {
-      "asset_id": "asset_2",
-      "so_gcn_goi_y": "CH 123456",
-      "dia_chi_goi_y": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội",
-      "filenames": [
-        "giay_chung_nhan.pdf",
-        "hop_dong_mua_ban-v2.pdf"
-      ],
-      "shared_filenames": [
-        "cccd_kh.jpg"
-      ],
-      "grouping_method": "llm",
-      "grouping_confidence": 0.9,
-      "grouping_reason": "Cùng số thửa 0000, tờ bản đồ 01, cùng nhắc tên bên bán Nguyễn Văn A và bên mua Nguyễn Minh Tuấn"
+      "grouping_method": "fallback_single",
+      "grouping_confidence": 1.0,
+      "grouping_reason": "Chỉ phát hiện 1 GCN trong hồ sơ → toàn bộ file thuộc về 1 tài sản."
     }
   ],
   "grouping_confirmed": true,
@@ -86,87 +53,8 @@
       "asset_id": "asset_1",
       "document_filenames": [
         "cccd_kh.jpg",
-        "gcn_b.pdf",
-        "hdcn_b.pdf"
-      ],
-      "owner_info": {
-        "ho_ten": "NGUYỄN MINH TUÁN",
-        "so_cccd": "578302649171",
-        "so_cmtnd_cu": "",
-        "ngay_sinh": "15/02/1990",
-        "dia_chi_thuong_tru": "16/4/3, Hoàng Quốc Việt, Phù Ninh, Phú Thọ"
-      },
-      "asset_info": {
-        "so_gcn": "ĐN 654321",
-        "chu_su_dung_goc": "Trần Đình Khoa, Lê Thị Mỹ Dung",
-        "chu_su_dung_hien_tai": "Nguyễn Minh Tuấn",
-        "bien_dong_lich_su": [
-          {
-            "ngay": "08/07/2024",
-            "noi_dung": "Chuyển nhượng cho ông Nguyễn Minh Tuấn",
-            "chu_moi": "Nguyễn Minh Tuấn"
-          }
-        ],
-        "ngay_cap_gcn": "10/03/2024",
-        "ngay_chuyen_nhuong": "08/07/2024",
-        "muc_dich_su_dung": "Đất thương mại, dịch vụ",
-        "ma_ky_hieu_dat": "",
-        "dia_chi_tai_san": "Golden Hills City - Khu A, xã Hòa Liên, huyện Hòa Vang, Thành phố Đà Nẵng",
-        "dien_tich_tong": "154,1",
-        "dien_tich_dat_o": "",
-        "dien_tich_nha_o": "",
-        "dien_tich_nn": "",
-        "dien_tich_nts": "",
-        "dien_tich_tmdv": "154,1",
-        "co_thong_tin_tang_cho": false,
-        "thuoc_du_an": true,
-        "ten_du_an": "Golden Hills City (giai đoạn I) – Khu A",
-        "can_cu_phap_ly_du_an": "Quyết định số 4968/QĐ-UBND ngày 23-06-2012 của UBND thành phố Đà Nẵng",
-        "nguon_goc_tai_san": "Nhà nước giao đất có thu tiền sử dụng đất",
-        "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
-        "ben_mua_so_cccd_hop_dong": "025090012345",
-        "ben_ban_hop_dong": "Trần Đình Khoa, Lê Thị Mỹ Dung"
-      },
-      "identity_check": {
-        "owner_matched": true,
-        "matched_against": "chu_hien_tai",
-        "mismatch_fields": [],
-        "is_tang_cho": false,
-        "is_thua_ke": false,
-        "asset_formation_date": "",
-        "asset_formation_note": "",
-        "owner_name_similarity": 0.938
-      },
-      "land_purpose": {
-        "muc_dich": "Đất thương mại, dịch vụ",
-        "ma_ky_hieu_dat": "",
-        "dien_tich_dat_o_du_dieu_kien": "0",
-        "dien_tich_nha_o_du_dieu_kien": "0",
-        "is_tmdv": true,
-        "thuoc_du_an": true,
-        "ten_du_an": "Golden Hills City (giai đoạn I) – Khu A",
-        "can_cu_phap_ly_du_an": "Quyết định số 4968/QĐ-UBND ngày 23-06-2012 của UBND thành phố Đà Nẵng",
-        "nguon_xac_dinh_du_an": "ho_so_noi_bo",
-        "web_verification_sources": [],
-        "web_verification_summary": "",
-        "warning_tmdv": ""
-      },
-      "flags": [],
-      "warnings": [],
-      "has_critical_flags": false,
-      "processing_notes": [
-        "[B2] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 0 m², nhà ở = 0 m².",
-        "B2 hoàn thành: LLM extract thành công.",
-        "[B3] Ngày hình thành tài sản xác định = 08/07/2024 (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024))."
-      ],
-      "error": null
-    },
-    {
-      "asset_id": "asset_2",
-      "document_filenames": [
-        "cccd_kh.jpg",
-        "giay_chung_nhan.pdf",
-        "hop_dong_mua_ban-v2.pdf"
+        "giay_chung_nhan-v3.pdf",
+        "hop_dong_mua_ban-v3.pdf"
       ],
       "owner_info": {
         "ho_ten": "NGUYỄN MINH TUÁN",
@@ -232,6 +120,12 @@
       },
       "flags": [
         {
+          "flag_type": "TMDV_KHONG_KHOP_RULE_BASED",
+          "severity": "WARNING",
+          "description": "Rule-based phát hiện tín hiệu đất thương mại dịch vụ (TMD) trong văn bản, nhưng LLM không gắn is_tmdv=True. Cần cán bộ tín dụng đối chiếu lại.",
+          "affected_field": "land_purpose.is_tmdv"
+        },
+        {
           "flag_type": "TAI_SAN_MOI_HINH_THANH",
           "severity": "WARNING",
           "description": "Tài sản hình thành ngày 08/07/2026, cách đây 0 tháng (< 24 tháng). Nguồn xác định: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026). Cần làm rõ nguồn gốc tiền hình thành tài sản.",
@@ -243,6 +137,7 @@
       ],
       "has_critical_flags": false,
       "processing_notes": [
+        "[B2] Rule-based: có tín hiệu TMDV nhưng LLM bỏ sót is_tmdv.",
         "[B2] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 400 m², nhà ở = 150 m².",
         "B2 hoàn thành: LLM extract thành công.",
         "[B3] Ngày hình thành tài sản xác định = 08/07/2026 (nguồn: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026)).",
@@ -255,10 +150,10 @@
   "warnings": [],
   "has_critical_flags": false,
   "processing_notes": [
-    "B1 hoàn thành: 5 file, phát hiện 2 GCN.",
+    "B1 hoàn thành: 3 file, phát hiện 1 GCN.",
+    "[B1b] Chỉ 1 tài sản được phát hiện — bỏ qua bước gọi LLM gom nhóm.",
     "[B1c] Cán bộ tín dụng đã XÁC NHẬN nhóm tài sản do AI đề xuất, không chỉnh sửa.",
-    "[B2-B3] Tài sản 'asset_1' xử lý xong — 0 flag(s), has_critical_flags=False.",
-    "[B2-B3] Tài sản 'asset_2' xử lý xong — 1 flag(s), has_critical_flags=False."
+    "[B2-B3] Tài sản 'asset_1' xử lý xong — 2 flag(s), has_critical_flags=False."
   ],
   "error": null
 }
