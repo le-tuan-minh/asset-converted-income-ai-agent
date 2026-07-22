@@ -2,12 +2,11 @@
 Area Rules — parse số diện tích kiểu VN + rule-based cross-check diện tích.
 
 Vấn đề cần chặn: các trường diện tích (dien_tich_tong, dien_tich_nn, ...) hiện
-là string tự do do LLM trả về, và LLM tự thực hiện phép CỘNG (vd
-dien_tich_du_dieu_kien = dat_o + nha_o) ngay trong lúc extract JSON. Điều này
-khiến cùng một hồ sơ, 2 lần gọi Groq LLM (dù temperature=0) có thể ra 2 con số
-khác nhau — vì LLM không tất định 100% ở việc "làm toán", và ranh giới giữa các
-loại đất (vd đất nuôi trồng thủy sản có tính vào "đất nông nghiệp" hay không)
-không được chốt rõ trong prompt.
+là string tự do do LLM trả về. Cùng một hồ sơ, 2 lần gọi Groq LLM (dù
+temperature=0) có thể ra 2 con số khác nhau nếu để LLM tự "làm toán" — vì LLM
+không tất định 100% ở việc này, và ranh giới giữa các loại đất (vd đất nuôi
+trồng thủy sản có tính vào "đất nông nghiệp" hay không) không được chốt rõ
+trong prompt.
 
 Nguyên tắc thiết kế (giống land_rules.py / identity_rules.py):
   - Rule-based ở đây có 2 vai trò:
@@ -16,10 +15,12 @@ Nguyên tắc thiết kế (giống land_rules.py / identity_rules.py):
       2. Cross-check tổng diện tích các thành phần với dien_tich_tong — CHỈ
          được phép sinh flag cảnh báo khi lệch, KHÔNG được tự "sửa" số liệu
          nào của LLM (không đủ căn cứ để biết số nào đúng, số nào sai).
-  - RIÊNG "dien_tich_du_dieu_kien": đây là phép cộng ĐƠN GIẢN, CÓ ĐỊNH NGHĨA RÕ
-    RÀNG (đất ở ODT/ONT + nhà ở), không có yếu tố suy luận ngữ nghĩa nào cần
-    LLM — do đó việc này PHẢI do code tính tất định, không lấy trực tiếp con số
-    LLM tự cộng trong JSON output.
+  - "Diện tích đủ điều kiện quy đổi": ĐÃ SỬA (fix #2) — KHÔNG còn cộng gộp đất
+    ở + nhà ở thành 1 con số nữa, vì đây là 2 loại tài sản khác bản chất
+    (đất theo m² thửa đất, nhà theo m² sàn xây dựng), thường có đơn giá định
+    giá khác nhau ở bước sau. Thay vào đó, code tính tất định lại RIÊNG TỪNG
+    con số (xem compute_dien_tich_du_dieu_kien_parts), không lấy trực tiếp số
+    LLM tự trả trong JSON output.
 """
 from __future__ import annotations
 import re
@@ -61,16 +62,24 @@ def format_area(value: float) -> str:
     return str(value)
 
 
-def compute_dien_tich_du_dieu_kien(dien_tich_dat_o: str, dien_tich_nha_o: str) -> str:
+def compute_dien_tich_du_dieu_kien_parts(
+    dien_tich_dat_o: str, dien_tich_nha_o: str
+) -> tuple[str, str]:
     """
-    Tính TẤT ĐỊNH diện tích đủ điều kiện quy đổi = đất ở (ODT/ONT) + nhà ở.
-    Đây là con số duy nhất dùng để tính giá trị BĐS ở bước sau — PHẢI nhất
-    quán 100% giữa các lần chạy trên cùng 1 hồ sơ, nên KHÔNG được lấy từ số
-    LLM tự cộng trong JSON (dễ thiếu nhất quán giữa các lần gọi).
+    ĐÃ SỬA (fix #2 — không còn cộng gộp): tính TẤT ĐỊNH lại 2 con số đất ở và
+    nhà ở RIÊNG BIỆT (chỉ parse + format lại cho nhất quán giữa các lần chạy,
+    KHÔNG cộng chúng với nhau).
+
+    Lý do tách: đất ở (m² thửa đất) và nhà ở (m² sàn xây dựng, có thể lớn hơn
+    diện tích đất nếu nhà nhiều tầng) là 2 đại lượng khác bản chất, thường
+    được định giá theo đơn giá riêng ở bước tính giá trị BĐS (B4+). Gộp lại
+    thành 1 số làm bước sau mất khả năng áp đúng đơn giá cho từng loại.
+
+    Trả về: (dien_tich_dat_o_formatted, dien_tich_nha_o_formatted)
     """
     dat_o = parse_vn_area(dien_tich_dat_o) or 0.0
     nha_o = parse_vn_area(dien_tich_nha_o) or 0.0
-    return format_area(dat_o + nha_o)
+    return format_area(dat_o), format_area(nha_o)
 
 
 def cross_check_area_totals(

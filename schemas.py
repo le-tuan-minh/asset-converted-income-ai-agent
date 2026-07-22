@@ -199,6 +199,16 @@ class IdentityCheckResult(BaseModel):
     asset_formation_date: str = ""
     asset_formation_note: str = ""
 
+    # ── MỚI (fix #7): similarity score của lớp so khớp CCCD vs GCN (Lớp 1) ──
+    # None  = chưa đủ dữ liệu để so sánh (thiếu owner_info.ho_ten hoặc chu_su_dung).
+    # 1.0   = khớp tuyệt đối sau chuẩn hoá (bỏ dấu tiếng Việt + bỏ danh xưng Ông/Bà...).
+    # <1.0  = khớp gần đúng (vd lệch 1 ký tự do lỗi OCR) — owner_matched vẫn có thể
+    #         là True (vì compare_names dùng exact_match sau chuẩn hoá dấu để quyết
+    #         định True/False, còn similarity ở đây tính trên chuỗi GỐC chưa bỏ dấu,
+    #         nên vẫn có giá trị tham khảo mức độ khác biệt thực tế giữa 2 nguồn).
+    #         Cán bộ tín dụng nên đối chiếu bản gốc khi giá trị này < 1.0.
+    owner_name_similarity: Optional[float] = None
+
     # ── Coerce giá trị Literal (xem _coerce_matched_against ở đầu file) ──
     @field_validator("matched_against", mode="before")
     @classmethod
@@ -210,9 +220,18 @@ class LandPurposeResult(BaseModel):
     """Kết quả phân loại mục đích sử dụng đất."""
     muc_dich: str = ""
     ma_ky_hieu_dat: str = ""            # Mã ký hiệu loại đất (TMD/ODT/ONT/SKC/...)
-    dien_tich_du_dieu_kien: str = ""    # Diện tích được dùng để tính giá trị BĐS — LUÔN do
-                                         # code tính tất định (xem nodes/area_rules.py), không
-                                         # lấy trực tiếp từ số LLM tự cộng.
+
+    # ── ĐÃ SỬA (fix #2): tách riêng đất ở và nhà ở, KHÔNG cộng gộp nữa ──
+    # Lý do: đất ở (m² thửa đất) và nhà ở (m² sàn xây dựng, có thể lớn hơn diện
+    # tích đất nếu nhà nhiều tầng) là 2 đại lượng khác bản chất, thường được
+    # định giá theo đơn giá riêng ở bước tính giá trị BĐS (B4+). Cộng gộp thành
+    # 1 con số làm mất khả năng áp đúng đơn giá cho từng loại ở bước sau.
+    # Cả 2 field LUÔN do code tính tất định (parse + format lại từ
+    # asset_info.dien_tich_dat_o / dien_tich_nha_o — xem nodes/area_rules.py),
+    # không lấy trực tiếp số LLM tự trả trong JSON.
+    dien_tich_dat_o_du_dieu_kien: str = ""
+    dien_tich_nha_o_du_dieu_kien: str = ""
+
     is_tmdv: bool = False
     thuoc_du_an: Optional[bool] = None
     ten_du_an: str = ""                 # Tên dự án nếu is_tmdv=True và thuoc_du_an=True
@@ -228,7 +247,10 @@ class LandPurposeResult(BaseModel):
     warning_tmdv: str = ""
 
     # ── Coerce kiểu dữ liệu (xem _coerce_numeric_to_str ở đầu file) ──
-    @field_validator("dien_tich_du_dieu_kien", mode="before")
+    @field_validator(
+        "dien_tich_dat_o_du_dieu_kien", "dien_tich_nha_o_du_dieu_kien",
+        mode="before",
+    )
     @classmethod
     def _validate_dien_tich_du_dieu_kien(cls, v):
         return _coerce_numeric_to_str(v)

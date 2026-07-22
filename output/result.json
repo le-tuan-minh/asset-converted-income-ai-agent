@@ -61,7 +61,7 @@
       ],
       "grouping_method": "llm",
       "grouping_confidence": 0.9,
-      "grouping_reason": "Cùng số thửa 1, tờ bản đồ B2-37, cùng nhắc tên bên bán Trần Đình Khoa và Lê Thị Mỹ Dung"
+      "grouping_reason": "Cùng số thửa 1, tờ bản đồ B2-37, cùng nhắc tên bên bán Trần Đình Khoa và bên mua Nguyễn Minh Tuấn"
     },
     {
       "asset_id": "asset_2",
@@ -76,7 +76,7 @@
       ],
       "grouping_method": "llm",
       "grouping_confidence": 0.9,
-      "grouping_reason": "Cùng số thửa 0000, tờ bản đồ 01, cùng nhắc tên bên bán Nguyễn Văn A và Nguyễn Thị B"
+      "grouping_reason": "Cùng số thửa 0000, tờ bản đồ 01, cùng nhắc tên bên bán Nguyễn Văn A và bên mua Nguyễn Minh Tuấn"
     }
   ],
   "grouping_confirmed": true,
@@ -112,12 +112,12 @@
         "muc_dich_su_dung": "Đất thương mại, dịch vụ",
         "ma_ky_hieu_dat": "",
         "dia_chi_tai_san": "Golden Hills City - Khu A, xã Hòa Liên, huyện Hòa Vang, Thành phố Đà Nẵng",
-        "dien_tich_tong": "154,1 m²",
+        "dien_tich_tong": "154,1",
         "dien_tich_dat_o": "",
         "dien_tich_nha_o": "",
         "dien_tich_nn": "",
         "dien_tich_nts": "",
-        "dien_tich_tmdv": "154,1 m²",
+        "dien_tich_tmdv": "154,1",
         "co_thong_tin_tang_cho": false,
         "thuoc_du_an": true,
         "ten_du_an": "Golden Hills City (giai đoạn I) – Khu A",
@@ -134,12 +134,14 @@
         "is_tang_cho": false,
         "is_thua_ke": false,
         "asset_formation_date": "",
-        "asset_formation_note": ""
+        "asset_formation_note": "",
+        "owner_name_similarity": 0.938
       },
       "land_purpose": {
         "muc_dich": "Đất thương mại, dịch vụ",
         "ma_ky_hieu_dat": "",
-        "dien_tich_du_dieu_kien": "0",
+        "dien_tich_dat_o_du_dieu_kien": "0",
+        "dien_tich_nha_o_du_dieu_kien": "0",
         "is_tmdv": true,
         "thuoc_du_an": true,
         "ten_du_an": "Golden Hills City (giai đoạn I) – Khu A",
@@ -153,7 +155,7 @@
       "warnings": [],
       "has_critical_flags": false,
       "processing_notes": [
-        "[B2] Ghi đè dien_tich_du_dieu_kien: LLM trả '154,1 m²', code tính lại tất định = '0' (đất ở 0 + nhà ở 0).",
+        "[B2] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 0 m², nhà ở = 0 m².",
         "B2 hoàn thành: LLM extract thành công.",
         "[B3] Ngày hình thành tài sản xác định = 08/07/2024 (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024))."
       ],
@@ -187,22 +189,22 @@
         "ngay_cap_gcn": "12/04/2025",
         "ngay_chuyen_nhuong": "08/07/2026",
         "muc_dich_su_dung": "Đất ở tại nông thôn, Đất trồng cây lâu năm, Đất nuôi trồng thủy sản",
-        "ma_ky_hieu_dat": "",
+        "ma_ky_hieu_dat": "ONT, CLN, NTS",
         "dia_chi_tai_san": "Thôn Hà Xá, xã Đại Hưng, huyện Mỹ Đức, Thành phố Hà Nội",
-        "dien_tich_tong": "10.012 m²",
-        "dien_tich_dat_o": "400 m²",
-        "dien_tich_nha_o": "150 m²",
-        "dien_tich_nn": "9.112 m²",
-        "dien_tich_nts": "",
+        "dien_tich_tong": "10.012",
+        "dien_tich_dat_o": "400",
+        "dien_tich_nha_o": "150",
+        "dien_tich_nn": "9.112",
+        "dien_tich_nts": "500",
         "dien_tich_tmdv": "",
         "co_thong_tin_tang_cho": false,
         "thuoc_du_an": null,
         "ten_du_an": "",
         "can_cu_phap_ly_du_an": "",
-        "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất như giao đất có thu tiền sử dụng đất",
-        "ben_mua_hop_dong": "Ông Nguyễn Minh Tuấn",
+        "nguon_goc_tai_san": "Nhà nước công nhận quyền sử dụng đất",
+        "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
         "ben_mua_so_cccd_hop_dong": "025090012345",
-        "ben_ban_hop_dong": "Ông Nguyễn Văn A, Bà Nguyễn Thị B"
+        "ben_ban_hop_dong": "Nguyễn Văn A, Nguyễn Thị B"
       },
       "identity_check": {
         "owner_matched": true,
@@ -210,13 +212,15 @@
         "mismatch_fields": [],
         "is_tang_cho": false,
         "is_thua_ke": false,
-        "asset_formation_date": "",
-        "asset_formation_note": ""
+        "asset_formation_date": "12/04/2025",
+        "asset_formation_note": "",
+        "owner_name_similarity": 0.938
       },
       "land_purpose": {
         "muc_dich": "Đất ở tại nông thôn, Đất trồng cây lâu năm, Đất nuôi trồng thủy sản",
-        "ma_ky_hieu_dat": "",
-        "dien_tich_du_dieu_kien": "550",
+        "ma_ky_hieu_dat": "ONT, CLN, NTS",
+        "dien_tich_dat_o_du_dieu_kien": "400",
+        "dien_tich_nha_o_du_dieu_kien": "150",
         "is_tmdv": false,
         "thuoc_du_an": null,
         "ten_du_an": "",
@@ -227,12 +231,6 @@
         "warning_tmdv": ""
       },
       "flags": [
-        {
-          "flag_type": "DIEN_TICH_KHONG_KHOP",
-          "severity": "WARNING",
-          "description": "Tổng diện tích ghi trên GCN (10012 m²) KHÔNG khớp với tổng các thành phần đã trích xuất (đất ở 400 + NN 9112 + NTS 0 + TMDV 0 = 9512 m², lệch 500 m²). Có thể LLM bỏ sót hoặc gộp nhầm một loại đất (vd gộp đất nuôi trồng thủy sản vào đất nông nghiệp). Cần cán bộ tín dụng đối chiếu lại bản gốc GCN.",
-          "affected_field": "asset_info.dien_tich_*"
-        },
         {
           "flag_type": "TAI_SAN_MOI_HINH_THANH",
           "severity": "WARNING",
@@ -245,10 +243,10 @@
       ],
       "has_critical_flags": false,
       "processing_notes": [
-        "[B2] Ghi đè dien_tich_du_dieu_kien: LLM trả '(trống)', code tính lại tất định = '550' (đất ở 400 m² + nhà ở 150 m²).",
-        "[B2] Tổng diện tích ghi trên GCN (10012 m²) KHÔNG khớp với tổng các thành phần đã trích xuất (đất ở 400 + NN 9112 + NTS 0 + TMDV 0 = 9512 m², lệch 500 m²). Có thể LLM bỏ sót hoặc gộp nhầm một loại đất (vd gộp đất nuôi trồng thủy sản vào đất nông nghiệp). Cần cán bộ tín dụng đối chiếu lại bản gốc GCN.",
+        "[B2] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 400 m², nhà ở = 150 m².",
         "B2 hoàn thành: LLM extract thành công.",
-        "[B3] Ngày hình thành tài sản xác định = 08/07/2026 (nguồn: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026))."
+        "[B3] Ngày hình thành tài sản xác định = 08/07/2026 (nguồn: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026)).",
+        "[B3] Lưu ý: LLM tự ghi asset_formation_date='12/04/2025' khác với ngày rule-based tính được (08/07/2026). Ưu tiên dùng kết quả rule-based (nguồn: bien_dong_lich_su (khớp chu_moi='Ông Nguyễn Minh Tuấn', ngày=08/07/2026))."
       ],
       "error": null
     }
@@ -260,7 +258,7 @@
     "B1 hoàn thành: 5 file, phát hiện 2 GCN.",
     "[B1c] Cán bộ tín dụng đã XÁC NHẬN nhóm tài sản do AI đề xuất, không chỉnh sửa.",
     "[B2-B3] Tài sản 'asset_1' xử lý xong — 0 flag(s), has_critical_flags=False.",
-    "[B2-B3] Tài sản 'asset_2' xử lý xong — 2 flag(s), has_critical_flags=False."
+    "[B2-B3] Tài sản 'asset_2' xử lý xong — 1 flag(s), has_critical_flags=False."
   ],
   "error": null
 }

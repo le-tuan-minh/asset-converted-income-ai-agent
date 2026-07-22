@@ -75,16 +75,57 @@ def normalize_name(name: str) -> str:
     return " ".join(tokens)
 
 
+def _is_honorific(token: str) -> bool:
+    """So khớp danh xưng KHÔNG phân biệt dấu (vd 'ÔNG' vẫn nhận diện được như
+    'ONG'), dùng riêng cho normalize_name_keep_diacritics() bên dưới — vì
+    _HONORIFIC_PREFIXES lưu dạng đã bỏ dấu."""
+    return _strip_accents(token) in _HONORIFIC_PREFIXES
+
+
+def _strip_honorifics_keep_diacritics(tokens: list[str]) -> list[str]:
+    """Giống _strip_honorifics(), nhưng giữ nguyên dấu của các token còn lại."""
+    result = list(tokens)
+    while result and _is_honorific(result[0]):
+        result.pop(0)
+    return result
+
+
+def normalize_name_keep_diacritics(name: str) -> str:
+    """
+    Chuẩn hoá tên nhưng GIỮ NGUYÊN dấu tiếng Việt — chỉ uppercase, gộp khoảng
+    trắng thừa, và bỏ danh xưng ở đầu tên. KHÔNG dùng để quyết định
+    owner_matched (vẫn dùng normalize_name() bỏ dấu, để không tạo false
+    positive khi lệch dấu do OCR) — hàm này CHỈ dùng để tính similarity hiển
+    thị tham khảo cho cán bộ tín dụng, vì cần giữ dấu mới phát hiện được các
+    trường hợp OCR đọc sai 1 ký tự có dấu (vd "Á" != "Ấ") — nếu bỏ dấu trước
+    khi so sánh thì 2 ký tự này sẽ bị coi là giống hệt nhau, che mất sai khác
+    thật sự giữa 2 nguồn.
+    """
+    if not name:
+        return ""
+    tokens = name.strip().upper().split()
+    tokens = _strip_honorifics_keep_diacritics(tokens)
+    return " ".join(tokens)
+
+
 def compare_names(name_a: str, name_b: str) -> dict:
     """
     So sánh 2 tên đã chuẩn hoá.
 
     Trả về dict:
-      - exact_match: bool — khớp tuyệt đối sau chuẩn hoá dấu/khoảng trắng
+      - exact_match: bool — khớp tuyệt đối sau chuẩn hoá BỎ DẤU/khoảng trắng
+        (dùng để quyết định owner_matched — cố tình bỏ dấu để không tạo false
+        positive khi lỗi OCR làm sai 1 dấu câu, xem normalize_name()).
       - same_tokens_diff_order: bool — cùng bộ âm tiết nhưng khác thứ tự
         (dấu hiệu rất đáng ngờ: dễ bị LLM/nghiệp vụ nhầm là "khớp" nhưng
         thực chất là 2 tên khác nhau, vd hoán vị họ/tên đệm/tên)
-      - similarity: float [0,1] — độ giống chuỗi (difflib ratio), tham khảo thêm
+      - similarity: float [0,1] — ĐÃ SỬA: độ giống chuỗi (difflib ratio) tính
+        trên chuỗi GỐC CÒN DẤU (chỉ bỏ danh xưng + khoảng trắng thừa, xem
+        normalize_name_keep_diacritics()), KHÔNG dùng chuỗi đã bỏ dấu. Lý do:
+        nếu tính trên chuỗi đã bỏ dấu, các lỗi OCR đọc sai 1 ký tự có dấu (vd
+        "Á" bị đọc thành "Ấ") sẽ bị che mất — vì sau khi bỏ dấu 2 ký tự này
+        trông giống hệt nhau. Field này CHỈ dùng để hiển thị tham khảo cho cán
+        bộ tín dụng, KHÔNG ảnh hưởng tới exact_match/owner_matched ở trên.
       - has_data: bool — cả 2 chuỗi đầu vào đều không rỗng (đủ để so sánh)
     """
     a, b = normalize_name(name_a), normalize_name(name_b)
@@ -100,7 +141,11 @@ def compare_names(name_a: str, name_b: str) -> dict:
     exact = a == b
     tokens_a, tokens_b = a.split(), b.split()
     same_tokens_diff_order = (not exact) and (sorted(tokens_a) == sorted(tokens_b))
-    similarity = round(difflib.SequenceMatcher(None, a, b).ratio(), 3)
+
+    # ĐÃ SỬA: similarity tính trên chuỗi GỐC CÒN DẤU, không phải a/b (đã bỏ dấu)
+    a_raw = normalize_name_keep_diacritics(name_a)
+    b_raw = normalize_name_keep_diacritics(name_b)
+    similarity = round(difflib.SequenceMatcher(None, a_raw, b_raw).ratio(), 3)
 
     return {
         "exact_match": exact,

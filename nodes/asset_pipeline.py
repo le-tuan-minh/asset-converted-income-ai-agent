@@ -23,7 +23,7 @@ from schemas import (
 )
 from nodes.land_rules import detect_tmdv_rule_based, LAND_USE_CODE_REFERENCE
 from nodes.identity_rules import compare_names, describe_mismatch_reason
-from nodes.area_rules import compute_dien_tich_du_dieu_kien, cross_check_area_totals
+from nodes.area_rules import compute_dien_tich_du_dieu_kien_parts, cross_check_area_totals
 from nodes.document_classifier import _strip_accents
 
 MAX_TOOL_CALLS = 4
@@ -64,10 +64,24 @@ Nhiệm vụ của bạn:
    hiện tại, nếu không rõ thì so với chủ gốc — ghi rõ matched_against là
    "chu_hien_tai" hoặc "chu_goc" hoặc "khong_ro"), phát hiện tặng cho/thừa kế,
    xác định ngày hình thành tài sản.
-4. Trích xuất land_purpose: mục đích sử dụng, mã ký hiệu, diện tích đủ điều
-   kiện (đất ở + nhà ở — bạn cứ tính, hệ thống sẽ tính lại chính xác sau),
-   is_tmdv, thuoc_du_an (chỉ set true/false nếu có căn cứ RÕ RÀNG trong hồ sơ,
-   nếu không đủ căn cứ thì để null).
+4. Trích xuất land_purpose: mục đích sử dụng, mã ký hiệu, is_tmdv, thuoc_du_an
+   (chỉ set true/false nếu có căn cứ RÕ RÀNG trong hồ sơ, nếu không đủ căn cứ
+   thì để null). KHÔNG cần tự tính diện tích đủ điều kiện quy đổi — hệ thống
+   sẽ tự lấy từ asset_info.dien_tich_dat_o / dien_tich_nha_o.
+
+QUAN TRỌNG — PHÂN BIỆT ĐẤT NÔNG NGHIỆP (NN) VÀ ĐẤT NUÔI TRỒNG THỦY SẢN (NTS):
+Đây là 2 field diện tích RIÊNG BIỆT, dễ bị nhầm lẫn nhất khi trích xuất:
+  - dien_tich_nn: CHỈ gồm đất trồng cây lâu năm (CLN) + lúa (LUC/LUK) + đất
+    nông nghiệp khác (NKH). TUYỆT ĐỐI KHÔNG cộng đất nuôi trồng thủy sản vào
+    field này, dù trên GCN 2 dòng này có thể nằm gần nhau trong cùng 1 bảng.
+  - dien_tich_nts: diện tích đất nuôi trồng thủy sản (mã NTS), PHẢI ghi RIÊNG,
+    đọc TỪNG DÒNG trong bảng diện tích của GCN, không gộp 2 dòng lại.
+
+TỰ KIỂM TRA TRƯỚC KHI TRẢ JSON: sau khi điền xong các trường diện tích, hãy tự
+cộng thử dien_tich_dat_o + dien_tich_nn + dien_tich_nts + dien_tich_tmdv rồi so
+với dien_tich_tong ghi trên GCN. Nếu 2 số này lệch nhau đáng kể, RÀ SOÁT LẠI
+xem có phải bạn đã gộp nhầm đất nuôi trồng thủy sản vào dien_tich_nn, hoặc bỏ
+sót 1 dòng nào đó trong bảng diện tích — sửa lại cho đúng TRƯỚC khi trả JSON.
 
 CHỈ trả về JSON đúng theo cấu trúc (không thêm chữ nào khác, không markdown):
 {
@@ -86,7 +100,7 @@ CHỈ trả về JSON đúng theo cấu trúc (không thêm chữ nào khác, kh
     "is_tang_cho": false, "is_thua_ke": false, "asset_formation_date": "", "asset_formation_note": ""
   },
   "land_purpose": {
-    "muc_dich": "", "ma_ky_hieu_dat": "", "dien_tich_du_dieu_kien": "", "is_tmdv": false,
+    "muc_dich": "", "ma_ky_hieu_dat": "", "is_tmdv": false,
     "thuoc_du_an": null, "ten_du_an": "", "can_cu_phap_ly_du_an": "",
     "nguon_xac_dinh_du_an": "chua_xac_dinh", "warning_tmdv": ""
   }
@@ -145,7 +159,7 @@ def _safe_build(model_cls, raw_data, label, notes):
     câu trả lời tự do), KHÔNG được vứt bỏ toàn bộ object — chỉ bỏ đúng
     (các) field lỗi đó và build lại, giữ nguyên mọi field khác đã trích xuất
     đúng. Đây là lỗi thực tế đã gặp: LLM trả sai `nguon_xac_dinh_du_an`
-    khiến cả `land_purpose` (kể cả muc_dich, is_tmdv, dien_tich_du_dieu_kien
+    khiến cả `land_purpose` (kể cả muc_dich, is_tmdv, dien_tich_dat_o_du_dieu_kien
     đã đúng) bị mất trắng vì Pydantic v2 reject nguyên object khi có 1 field
     sai kiểu.
 
@@ -251,14 +265,18 @@ def _cross_check_tmdv_rule_based(land_purpose, asset_info, grouped, flags, notes
 
 
 def _cross_check_area_rule_based(asset_info, land_purpose, flags, notes):
-    computed = compute_dien_tich_du_dieu_kien(asset_info.dien_tich_dat_o, asset_info.dien_tich_nha_o)
-    if computed != land_purpose.dien_tich_du_dieu_kien:
-        notes.append(
-            f"[B2] Ghi đè dien_tich_du_dieu_kien: LLM trả "
-            f"'{land_purpose.dien_tich_du_dieu_kien or '(trống)'}', code tính lại tất định "
-            f"= '{computed}' (đất ở {asset_info.dien_tich_dat_o or 0} + nhà ở {asset_info.dien_tich_nha_o or 0})."
-        )
-    land_purpose = land_purpose.model_copy(update={"dien_tich_du_dieu_kien": computed})
+    # ĐÃ SỬA (fix #2): không còn cộng gộp — tính lại tất định 2 con số riêng.
+    dat_o_computed, nha_o_computed = compute_dien_tich_du_dieu_kien_parts(
+        asset_info.dien_tich_dat_o, asset_info.dien_tich_nha_o
+    )
+    notes.append(
+        f"[B2] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): "
+        f"đất ở = {dat_o_computed} m², nhà ở = {nha_o_computed} m²."
+    )
+    land_purpose = land_purpose.model_copy(update={
+        "dien_tich_dat_o_du_dieu_kien": dat_o_computed,
+        "dien_tich_nha_o_du_dieu_kien": nha_o_computed,
+    })
 
     result = cross_check_area_totals(
         asset_info.dien_tich_tong,
@@ -289,28 +307,40 @@ def _cross_check_identity_rule_based(identity_check, owner_info, asset_info, fla
         else asset_info.chu_su_dung_goc
     ) or asset_info.chu_su_dung_hien_tai or asset_info.chu_su_dung_goc
 
-    if candidate_name and identity_check.owner_matched:
-        result = compare_names(owner_info.ho_ten, candidate_name)
+    if not candidate_name:
+        return identity_check
+
+    # ĐÃ SỬA (fix #7): luôn tính + lưu similarity, kể cả khi LLM đã báo khớp —
+    # để cán bộ tín dụng thấy được đây là "khớp tuyệt đối" hay "khớp gần đúng"
+    # (vd do lỗi OCR sai 1 ký tự có dấu), thay vì chỉ có True/False không phân
+    # biệt mức độ. Việc này CHỈ để hiển thị minh bạch, KHÔNG thay đổi ngưỡng
+    # quyết định owner_matched hiện có (vẫn dựa trên exact_match tuyệt đối).
+    result = compare_names(owner_info.ho_ten, candidate_name)
+    if result["has_data"]:
+        identity_check = identity_check.model_copy(update={
+            "owner_name_similarity": result["similarity"],
+        })
+
+    if identity_check.owner_matched and result["has_data"] and not result["exact_match"]:
         # compare_names là lưới an toàn: CHỈ tin "khớp" khi exact_match sau chuẩn
         # hoá (bỏ dấu + bỏ danh xưng). Nếu LLM tự tin owner_matched=True nhưng rule
         # based không thấy khớp tuyệt đối → hạ xuống False, không được tự nới lỏng.
-        if result["has_data"] and not result["exact_match"]:
-            reason = describe_mismatch_reason(result)
-            identity_check = identity_check.model_copy(update={
-                "owner_matched": False,
-                "mismatch_fields": list(set(identity_check.mismatch_fields + ["ho_ten (CCCD vs GCN)"])),
-            })
-            flags.append(FlagItem(
-                flag_type="CHU_TAI_SAN_LECH_RULE_BASED",
-                severity="ERROR",
-                description=(
-                    f"Rule-based phát hiện lệch tên: CCCD ghi '{owner_info.ho_ten}' nhưng GCN ghi "
-                    f"'{candidate_name}' ({reason}). LLM đã kết luận sai owner_matched=True."
-                ),
-                affected_field="owner_info.ho_ten / asset_info.chu_su_dung",
-            ))
-            notes.append(f"[B2] Rule-based hạ owner_matched True→False: {reason}")
-            warnings.append(f"⛔ Rule-based phát hiện lệch tên chủ tài sản: {reason}")
+        reason = describe_mismatch_reason(result)
+        identity_check = identity_check.model_copy(update={
+            "owner_matched": False,
+            "mismatch_fields": list(set(identity_check.mismatch_fields + ["ho_ten (CCCD vs GCN)"])),
+        })
+        flags.append(FlagItem(
+            flag_type="CHU_TAI_SAN_LECH_RULE_BASED",
+            severity="ERROR",
+            description=(
+                f"Rule-based phát hiện lệch tên: CCCD ghi '{owner_info.ho_ten}' nhưng GCN ghi "
+                f"'{candidate_name}' ({reason}). LLM đã kết luận sai owner_matched=True."
+            ),
+            affected_field="owner_info.ho_ten / asset_info.chu_su_dung",
+        ))
+        notes.append(f"[B2] Rule-based hạ owner_matched True→False: {reason}")
+        warnings.append(f"⛔ Rule-based phát hiện lệch tên chủ tài sản: {reason}")
     return identity_check
 
 
@@ -394,11 +424,13 @@ def verify_asset(documents: list[DocumentItem]) -> tuple[
 
     notes.append("B2 hoàn thành: LLM extract thành công.")
     print(
-        f"[B2] owner_matched={identity_check.owner_matched} | "
+        f"[B2] owner_matched={identity_check.owner_matched} "
+        f"(similarity={identity_check.owner_name_similarity}) | "
         f"muc_dich={land_purpose.muc_dich} ({land_purpose.ma_ky_hieu_dat or 'N/A'}) | "
         f"is_tmdv={land_purpose.is_tmdv} | thuoc_du_an={land_purpose.thuoc_du_an} "
         f"(nguồn={land_purpose.nguon_xac_dinh_du_an}) | "
-        f"dien_tich_du_dieu_kien={land_purpose.dien_tich_du_dieu_kien}"
+        f"dien_tich_dat_o_du_dieu_kien={land_purpose.dien_tich_dat_o_du_dieu_kien} | "
+        f"dien_tich_nha_o_du_dieu_kien={land_purpose.dien_tich_nha_o_du_dieu_kien}"
     )
     return owner_info, asset_info, identity_check, land_purpose, flags, warnings, notes, None
 

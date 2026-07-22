@@ -168,7 +168,9 @@ def print_report(final_state: GraphState) -> None:
         print(f"      Nông nghiệp (NN)     : {ai.dien_tich_nn or 'N/A'} m²")
         print(f"      Nuôi trồng TS (NTS)  : {ai.dien_tich_nts or 'N/A'} m²")
         print(f"      Thương mại DV (TMDV) : {ai.dien_tich_tmdv or 'N/A'} m²")
-        print(f"      ĐỦ ĐIỀU KIỆN QUY ĐỔI : {lp.dien_tich_du_dieu_kien or 'N/A'} m² (= đất ở + nhà ở, tính tất định)")
+        # ĐÃ SỬA (fix #2): tách 2 dòng riêng, không còn cộng gộp đất ở + nhà ở
+        print(f"      Đất ở (đủ ĐK quy đổi): {lp.dien_tich_dat_o_du_dieu_kien or 'N/A'} m² (tính tất định)")
+        print(f"      Nhà ở (đủ ĐK quy đổi): {lp.dien_tich_nha_o_du_dieu_kien or 'N/A'} m² (tính tất định)")
 
         print(f"\n   🧾 MỤC ĐÍCH SỬ DỤNG ĐẤT")
         print(f"      Mục đích             : {lp.muc_dich or ai.muc_dich_su_dung or 'N/A'}")
@@ -186,7 +188,16 @@ def print_report(final_state: GraphState) -> None:
                 print(f"      Nguồn web            : {lp.web_verification_sources}")
 
         print(f"\n   🔎 KIỂM TRA CHỦ TÀI SẢN")
-        print(f"      Khớp CCCD            : {'✅ Có' if ic.owner_matched else '❌ Không'} (so với: {ic.matched_against})")
+        # ĐÃ SỬA (fix #7): hiển thị similarity score để phân biệt "khớp tuyệt
+        # đối" và "khớp gần đúng" (vd do lỗi OCR sai dấu), thay vì chỉ True/False.
+        sim = ic.owner_name_similarity
+        if sim is None:
+            sim_note = ""
+        elif sim >= 0.999:
+            sim_note = " (khớp tuyệt đối)"
+        else:
+            sim_note = f" (similarity: {sim:.0%} — khớp gần đúng, cần đối chiếu bản gốc)"
+        print(f"      Khớp CCCD            : {'✅ Có' if ic.owner_matched else '❌ Không'} (so với: {ic.matched_against}){sim_note}")
         if ic.mismatch_fields:
             print(f"      Trường lệch          : {ic.mismatch_fields}")
         print(f"      Tặng cho / thừa kế   : tặng cho={ic.is_tang_cho}, thừa kế={ic.is_thua_ke}")
