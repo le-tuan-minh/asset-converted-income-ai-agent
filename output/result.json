@@ -80,14 +80,14 @@
         "ma_ky_hieu_dat": "",
         "dia_chi_tai_san": "Golden Hills City - Khu A, xã Hòa Liên, huyện Hòa Vang, Thành phố Đà Nẵng",
         "dien_tich_tong": "154,1",
-        "dien_tich_dat_o": "0",
-        "dien_tich_nha_o": "0",
-        "dien_tich_nn": "0",
-        "dien_tich_nts": "0",
-        "dien_tich_tmdv": "154,1",
+        "dien_tich_dat_o": "",
+        "dien_tich_nha_o": "",
+        "dien_tich_nn": "",
+        "dien_tich_nts": "",
+        "dien_tich_tmdv": "",
         "co_thong_tin_tang_cho": false,
-        "thuoc_du_an": true,
-        "ten_du_an": "Golden Hills City",
+        "thuoc_du_an": null,
+        "ten_du_an": "",
         "can_cu_phap_ly_du_an": "",
         "nguon_goc_tai_san": "Nhà nước giao đất có thu tiền sử dụng đất",
         "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
@@ -100,7 +100,7 @@
         "mismatch_fields": [],
         "is_tang_cho": false,
         "is_thua_ke": false,
-        "asset_formation_date": "10/03/2024",
+        "asset_formation_date": "",
         "asset_formation_note": "",
         "owner_name_similarity": 0.938
       },
@@ -115,21 +115,27 @@
         "can_cu_phap_ly_du_an": "",
         "nguon_xac_dinh_du_an": "web_search",
         "web_verification_sources": [
-          "https://lamthuymoc.com.vn/du-an/khu-do-thi-golden-hills-da-nang.html",
           "https://cafebatdongsan.com.vn/du-an-xem/62/golden-hills-city-da-nang",
-          "https://www.youtube.com/watch?v=L-4M1drO_Qo",
+          "https://nhadat24h.net/du-an/golden-hills-da-nang-931",
           "https://batdongsan.com.vn/ban-dat-nen-du-an-golden-hills-city",
-          "https://vinhomes-coloa.vn/gioi-thieu-du-an-golden-hills-da-nang.html"
+          "https://royaland.com.vn/du-an/du-an-golden-hills-da-nang.htm",
+          "https://batdongsan.com.vn/ban-dat-nen-du-an-xa-hoa-lien"
         ],
-        "web_verification_summary": "Thông tin chỉ mang tính tham khảo từ nguồn thương mại, chưa có căn cứ pháp lý chính thức. Dự án Golden Hills City có vị trí thuộc huyện Hòa Vang, Quận Liên Chiểu Đà Nẵng, tọa lạc ngay khu vực cửa ngõ vào thành phố Đà Nẵng ở phía Ty Bắc. Dự án nằm trên trục đường trọng điểm Nguyễn Tất Thành, vừa gần biển vừa gần sông và kết nối nhiều tuyến đường huyết mạch.",
+        "web_verification_summary": "Thửa đất thuộc dự án Golden Hills City, một dự án bất động sản tại xã Hòa Liên, huyện Hòa Vang, Thành phố Đà Nẵng. Tuy nhiên, không tìm thấy thông tin về số quyết định hoặc văn bản pháp lý cụ thể liên quan đến dự án này từ nguồn chính thống. Thông tin chỉ mang tính tham khảo từ nguồn thương mại.",
         "warning_tmdv": ""
       },
       "flags": [
         {
-          "flag_type": "TMDV_CAN_XAC_MINH_THU_CONG",
+          "flag_type": "TMDV_KHONG_KHOP_RULE_BASED",
           "severity": "WARNING",
-          "description": "LLM kết luận 'thuộc dự án' chỉ dựa vào tên gọi trong địa chỉ tài sản (vd tên khu đô thị/dự án xuất hiện trong địa chỉ), KHÔNG có căn cứ pháp lý cụ thể (số quyết định phê duyệt chủ trương đầu tư / giấy chứng nhận đầu tư) trong hồ sơ. Đã hạ về 'chưa xác định' để bắt buộc xác minh bổ sung.",
-          "affected_field": "land_purpose.thuoc_du_an"
+          "description": "Rule-based phát hiện tín hiệu đất thương mại dịch vụ (TMD) trong văn bản, nhưng LLM không gắn is_tmdv=True. Đã tự động ghi đè is_tmdv=True dựa trên rule-based (string-match trực tiếp trên văn bản gốc, đáng tin cậy hơn cho field này). Cần cán bộ tín dụng đối chiếu lại để xác nhận.",
+          "affected_field": "land_purpose.is_tmdv"
+        },
+        {
+          "flag_type": "DIEN_TICH_KHONG_KHOP",
+          "severity": "WARNING",
+          "description": "Tổng diện tích ghi trên GCN (154.1 m²) KHÔNG khớp với tổng các thành phần đã trích xuất (đất ở 0 + NN 0 + NTS 0 + TMDV 0 = 0 m², lệch 154.1 m²). Có thể LLM bỏ sót hoặc gộp nhầm một loại đất (vd gộp đất nuôi trồng thủy sản vào đất nông nghiệp). Cần cán bộ tín dụng đối chiếu lại bản gốc GCN.",
+          "affected_field": "asset_info.dien_tich_*"
         },
         {
           "flag_type": "TMDV_DU_AN_XAC_MINH_WEB",
@@ -141,12 +147,12 @@
       "warnings": [],
       "has_critical_flags": false,
       "processing_notes": [
-        "[B2a] Downgrade: thuoc_du_an True→None vì thiếu căn cứ pháp lý cụ thể (chỉ dựa vào tên gọi trong địa chỉ, chưa đủ để khẳng định thuộc dự án).",
+        "[B2a] Rule-based override: is_tmdv=True (LLM đã bỏ sót, rule-based phát hiện tín hiệu TMD rõ ràng trong văn bản).",
         "[B2a] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 0 m², nhà ở = 0 m².",
+        "[B2a] Tổng diện tích ghi trên GCN (154.1 m²) KHÔNG khớp với tổng các thành phần đã trích xuất (đất ở 0 + NN 0 + NTS 0 + TMDV 0 = 0 m², lệch 154.1 m²). Có thể LLM bỏ sót hoặc gộp nhầm một loại đất (vd gộp đất nuôi trồng thủy sản vào đất nông nghiệp). Cần cán bộ tín dụng đối chiếu lại bản gốc GCN.",
         "B2a hoàn thành: LLM extract thành công.",
         "[B2b] Web search kết luận thuoc_du_an=True.",
-        "[B3] Ngày hình thành tài sản xác định = 08/07/2024 (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024)).",
-        "[B3] Lưu ý: LLM tự ghi asset_formation_date='10/03/2024' khác với ngày rule-based tính được (08/07/2024). Ưu tiên dùng kết quả rule-based (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024))."
+        "[B3] Ngày hình thành tài sản xác định = 08/07/2024 (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024))."
       ],
       "error": null
     }
@@ -158,7 +164,7 @@
     "B1 hoàn thành: 3 file, phát hiện 1 GCN.",
     "[B1b] Chỉ 1 tài sản được phát hiện — bỏ qua bước gọi LLM gom nhóm.",
     "[B1c] Cán bộ tín dụng đã XÁC NHẬN nhóm tài sản do AI đề xuất, không chỉnh sửa.",
-    "[B2-B3] Tài sản 'asset_1' xử lý xong — 2 flag(s), has_critical_flags=False."
+    "[B2-B3] Tài sản 'asset_1' xử lý xong — 3 flag(s), has_critical_flags=False."
   ],
   "error": null
 }

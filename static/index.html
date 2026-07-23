@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thẩm định TSBĐ — AI Agent</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <h1>🏦 AI Agent Thẩm định tín dụng — Tài sản bảo đảm</h1>
+  <span id="apiStatus" class="badge badge-muted">đang kiểm tra kết nối…</span>
+</header>
+
+<main class="container">
+
+  <!-- ============ BƯỚC 1: INPUT ============ -->
+  <section class="card" id="startSection">
+    <h2>1. Nhập hồ sơ đầu vào</h2>
+    <div class="form-row">
+      <label>
+        Folder giấy tờ đầu vào
+        <input type="text" id="folderPath" placeholder="vd: input_data/test_input_multi" value="input_data/test_input_1" />
+      </label>
+      <label>
+        File lưu kết quả JSON
+        <input type="text" id="outputPath" value="output/result.json" />
+      </label>
+      <button id="startBtn" class="btn btn-primary">🚀 Bắt đầu xử lý</button>
+    </div>
+    <p id="startMsg" class="msg"></p>
+  </section>
+
+  <!-- ============ BƯỚC 2: GOM NHÓM TÀI SẢN (kéo thả) ============ -->
+  <section class="card hidden" id="groupingSection">
+    <h2>2. Xác nhận gom nhóm tài sản</h2>
+    <p class="hint">Kéo-thả file giữa các nhóm để điều chỉnh. Bấm vào một file để xem/phóng to chi tiết.</p>
+
+    <div class="grouping-layout">
+      <!-- Box giấy tờ nhân thân — tách riêng -->
+      <div class="identity-box dropzone" id="identityBox" data-zone="identity">
+        <div class="box-header">
+          <h3>🪪 Giấy tờ nhân thân (dùng chung)</h3>
+        </div>
+        <div class="chip-list" id="identityChips"></div>
+      </div>
+
+      <!-- Pool file chưa gán vào tài sản nào -->
+      <div class="unassigned-box dropzone" id="unassignedBox" data-zone="unassigned">
+        <div class="box-header">
+          <h3>📎 File chưa gán tài sản</h3>
+        </div>
+        <div class="chip-list" id="unassignedChips"></div>
+      </div>
+    </div>
+
+    <div class="assets-toolbar">
+      <h3>🏠 Các nhóm tài sản</h3>
+      <button id="addGroupBtn" class="btn btn-secondary">+ Thêm nhóm tài sản</button>
+    </div>
+    <div class="asset-groups" id="assetGroups"></div>
+
+    <div class="confirm-bar">
+      <label>
+        Ghi chú chỉnh sửa (tuỳ chọn)
+        <textarea id="editNote" rows="2" placeholder="Vd: tách thửa 12 và thửa 15 thành 2 tài sản riêng"></textarea>
+      </label>
+      <div class="confirm-actions">
+        <button id="confirmAiBtn" class="btn btn-secondary">✅ Giữ nguyên đề xuất AI</button>
+        <button id="confirmEditBtn" class="btn btn-primary">💾 Lưu thay đổi &amp; xác nhận</button>
+      </div>
+    </div>
+    <p id="confirmMsg" class="msg"></p>
+  </section>
+
+  <!-- ============ BƯỚC 3: KẾT QUẢ ============ -->
+  <section class="card hidden" id="resultSection">
+    <h2>3. Kết quả thẩm định</h2>
+    <div id="resultSummary" class="result-summary"></div>
+    <div id="resultAssets" class="result-assets"></div>
+    <a id="downloadResultLink" class="btn btn-secondary" href="#" download>⬇️ Tải file kết quả JSON</a>
+  </section>
+
+</main>
+
+<!-- ============ MODAL XEM FILE ============ -->
+<div id="fileModal" class="modal hidden">
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="modal-content">
+    <div class="modal-toolbar">
+      <span id="modalTitle" class="modal-title"></span>
+      <div class="zoom-controls">
+        <button id="zoomOutBtn" class="btn btn-icon">−</button>
+        <span id="zoomLevel">100%</span>
+        <button id="zoomInBtn" class="btn btn-icon">+</button>
+        <button id="zoomResetBtn" class="btn btn-icon" title="Reset zoom">⟳</button>
+      </div>
+      <button id="modalCloseBtn" class="btn btn-icon">✕</button>
+    </div>
+    <div class="modal-viewer" id="modalViewer"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
