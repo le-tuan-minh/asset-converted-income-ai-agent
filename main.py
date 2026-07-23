@@ -1,6 +1,6 @@
 """
-Main entrypoint — chạy luồng thẩm định B1 → B1b (AI gom nhóm tài sản) →
-B1c (human-in-the-loop xác nhận) → B2 → B2c → B3 cho TỪNG tài sản.
+Main entrypoint — chạy luồng thẩm định B1a → B1b (AI gom nhóm tài sản) →
+B1c (human-in-the-loop xác nhận) → B2a → B2b → B3 cho TỪNG tài sản (song song).
 
 Cách chạy:
     python main.py
@@ -66,7 +66,7 @@ def _print_grouping_proposal(payload: dict) -> None:
 def _ask_human_confirmation(payload: dict, auto_confirm: bool = False) -> dict:
     """
     Console-based human-in-the-loop. Trả về dict theo đúng format node
-    node_human_confirm_grouping mong đợi: {"action": "confirm"} hoặc
+    node_b1c_confirm_grouping mong đợi: {"action": "confirm"} hoặc
     {"action": "edit", "asset_groups": [...], "note": "..."}.
     """
     _print_grouping_proposal(payload)

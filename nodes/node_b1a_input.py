@@ -1,5 +1,5 @@
 """
-B1 - Input Node
+B1a - Input Node
 Nhận folder_path chứa số lượng file bất kỳ (pdf/ảnh) — CÓ THỂ ứng với NHIỀU
 tài sản khác nhau (vd 2 GCN của 2 thửa đất riêng biệt). Với từng file:
   1. Hybrid extract text (native text layer nếu có, fallback OCR nếu không).
@@ -29,14 +29,14 @@ from cores.document_classifier import classify_document
 MIN_CHARS_WARNING_THRESHOLD = 50
 
 
-def node_b1_input(state: GraphState) -> GraphState:
+def node_b1a_input(state: GraphState) -> GraphState:
     """
-    LangGraph node B1.
+    LangGraph node B1a.
     Input : state với input_folder
     Output: state với documents được điền đầy đủ (text + doc_type)
     """
     print("\n" + "=" * 60)
-    print("B1 · INPUT NODE — OCR (hybrid) + phân loại giấy tờ")
+    print("B1a · INPUT NODE — OCR (hybrid) + phân loại giấy tờ")
     print("=" * 60)
 
     flags = list(state.flags)

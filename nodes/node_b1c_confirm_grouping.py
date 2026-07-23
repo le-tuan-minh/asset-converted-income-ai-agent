@@ -20,7 +20,7 @@ from langgraph.types import interrupt
 from schemas import GraphState, AssetGroupCandidate, FlagItem
 
 
-def node_human_confirm_grouping(state: GraphState) -> GraphState:
+def node_b1c_confirm_grouping(state: GraphState) -> GraphState:
     print("\n" + "=" * 60)
     print("B1c · HUMAN-IN-THE-LOOP — Xác nhận nhóm tài sản")
     print("=" * 60)

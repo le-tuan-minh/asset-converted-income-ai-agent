@@ -21,7 +21,7 @@ theo hợp đồng mua bán/thế chấp riêng). Node này:
      tại bước xác nhận (human-in-the-loop, B1c).
 
   KẾT QUẢ CỦA NODE NÀY LUÔN LÀ ĐỀ XUẤT (candidate) — không tự động chạy tiếp
-  B2/B3 cho tới khi con người xác nhận/chỉnh sửa ở bước sau (node_human_confirm_grouping).
+  B2/B3 cho tới khi con người xác nhận/chỉnh sửa ở bước sau (node_b1c_confirm_grouping).
 """
 from __future__ import annotations
 import re

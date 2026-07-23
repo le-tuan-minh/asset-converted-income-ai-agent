@@ -1,14 +1,14 @@
 """
 LangGraph Graph definition — luồng thẩm định tín dụng hỗ trợ NHIỀU TÀI SẢN
 trong cùng 1 hồ sơ (folder input), với bước AI gom nhóm tài sản + xác nhận
-của con người (human-in-the-loop) trước khi chạy B2/B2c/B3 cho từng tài sản.
+của con người (human-in-the-loop) trước khi chạy B2a/B2b/B3 cho từng tài sản.
 
 Luồng:
 
   START
     │
     ▼
-  b1_input                     (OCR hybrid + phân loại giấy tờ — cấp hồ sơ)
+  b1a_input                     (OCR hybrid + phân loại giấy tờ — cấp hồ sơ)
     │
     ├─ route_after_b1: thiếu CCCD hoặc thiếu GCN ở cấp hồ sơ → human_review → END
     │
@@ -23,11 +23,12 @@ Luồng:
                                   dụng xác nhận hoặc chỉnh sửa, rồi resume)
     │
     ▼
-  b2_process_assets              (Lặp qua TỪNG tài sản đã xác nhận, chạy B2
-                                  Groq LLM extract & verify → B2c web search
-                                  TMDV nếu cần → B3 rule-based flag engine.
-                                  Documents của tài sản này được lọc riêng,
-                                  KHÔNG lẫn dữ liệu giữa các tài sản.)
+  b2_process_assets              (Chạy SONG SONG — asyncio.gather — cho TỪNG
+                                  tài sản đã xác nhận: B2a Groq LLM extract &
+                                  verify → B2b web search TMDV nếu cần → B3
+                                  rule-based flag engine. Documents của tài sản
+                                  này được lọc riêng, KHÔNG lẫn dữ liệu giữa
+                                  các tài sản.)
     │
     ├─ route_after_processing: có ≥1 tài sản có flag ERROR → human_review → END
     │
@@ -47,9 +48,9 @@ from __future__ import annotations
 from langgraph.graph import StateGraph, END
 
 from schemas import GraphState
-from nodes.node_b1_input import node_b1_input
+from nodes.node_b1a_input import node_b1a_input
 from nodes.node_b1b_group_assets import node_b1b_group_assets
-from nodes.node_human_confirm_grouping import node_human_confirm_grouping
+from nodes.node_b1c_confirm_grouping import node_b1c_confirm_grouping
 from nodes.node_b2_process_assets import node_b2_process_assets
 from nodes.node_human_review import node_human_review
 
@@ -82,16 +83,16 @@ def build_graph(checkpointer=None):
     """
     graph = StateGraph(GraphState)
 
-    graph.add_node("b1_input", node_b1_input)
+    graph.add_node("b1a_input", node_b1a_input)
     graph.add_node("b1b_group_assets", node_b1b_group_assets)
-    graph.add_node("b1c_confirm_grouping", node_human_confirm_grouping)
+    graph.add_node("b1c_confirm_grouping", node_b1c_confirm_grouping)
     graph.add_node("b2_process_assets", node_b2_process_assets)
     graph.add_node("human_review", node_human_review)
 
-    graph.set_entry_point("b1_input")
+    graph.set_entry_point("b1a_input")
 
     graph.add_conditional_edges(
-        "b1_input",
+        "b1a_input",
         route_after_b1,
         {"human_review": "human_review", "continue": "b1b_group_assets"},
     )

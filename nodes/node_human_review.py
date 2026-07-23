@@ -21,4 +21,4 @@ def node_human_review(state: GraphState) -> GraphState:
         n_critical_assets = sum(1 for r in state.asset_results if r.has_critical_flags)
         print(f"Lý do: {n_critical_assets}/{len(state.asset_results)} tài sản có flag mức ERROR.")
 
-    return states
+    return state
