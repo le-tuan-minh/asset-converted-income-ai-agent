@@ -5,6 +5,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Thẩm định TSBĐ — AI Agent</title>
 <link rel="stylesheet" href="style.css" />
+<style>
+  /* ============================================================
+     Bổ sung style cho BR-01, 05, 06, 08, 09, 13, 14, 20
+     (giữ nguyên style.css gốc, chỉ thêm mới ở đây)
+     ============================================================ */
+
+  /* BR: hiển thị 4 box kết quả (chủ tài sản/tài sản/nhân thân/mục đích) dạng
+     LƯỚI 2x2 thay vì 1 hàng ngang 1x4, dễ đọc hơn trên màn hình rộng */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 640px) {
+    .info-grid { grid-template-columns: 1fr; } /* màn hình hẹp: xếp dọc 1 cột */
+  }
+
+  /* BR-06: chống tràn chữ */
+  .info-block table, .info-block td, .info-block th {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .info-block td:first-child { min-width: 120px; }
+  .flag-item, .flag-item div { word-break: break-word; overflow-wrap: anywhere; }
+  .hidden { display: none !important; }
+
+  /* BR-07: timeline biến động */
+  .timeline-list { margin: 0; padding-left: 18px; }
+  .timeline-list li { margin-bottom: 4px; }
+  .text-dim { color: var(--text-dim, #9aa5c0); }
+
+  /* BR-08/09: tooltip chú giải */
+  .info-tooltip { border-bottom: 1px dotted var(--text-dim, #9aa5c0); cursor: help; }
+
+  /* BR-13: chấm trạng thái 3 màu */
+  .status-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .status-dot.status-ok { background: var(--ok, #46c98a); }
+  .status-dot.status-warning { background: var(--warning, #f5b942); }
+  .status-dot.status-error { background: var(--error, #ef5350); }
+  .severity-chip {
+    font-size: 10px; padding: 1px 7px; border-radius: 999px; font-weight: 700; margin-left: 6px;
+  }
+  .severity-chip.sev-error { background: rgba(239,83,80,.18); color: var(--error, #ef5350); }
+  .severity-chip.sev-warning { background: rgba(245,185,66,.18); color: var(--warning, #f5b942); }
+
+  /* BR-14: link nguồn web */
+  .web-source-link {
+    display: block; font-size: 12px; color: var(--primary, #4f7cff);
+    text-decoration: none; padding: 2px 0; word-break: break-all;
+  }
+  .web-source-link:hover { text-decoration: underline; }
+  .web-source-domain { color: var(--text-dim, #9aa5c0); font-size: 10px; margin-left: 4px; }
+
+  /* BR-20: thanh tìm kiếm/lọc */
+  .result-filter-bar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 14px; padding: 10px 12px;
+    background: var(--panel-2, #1c2438); border: 1px solid var(--border, #2a3350); border-radius: 8px;
+  }
+  .result-filter-bar input[type="text"] { flex: 1 1 220px; }
+  .result-filter-bar select {
+    background: var(--panel, #161d2e); border: 1px solid var(--border, #2a3350);
+    color: var(--text, #e7ebf5); border-radius: 6px; padding: 7px 10px; font-size: 12px;
+  }
+  .asset-result-card.filtered-out { display: none !important; }
+  .result-filter-count { font-size: 12px; color: var(--text-dim, #9aa5c0); }
+
+  /* BR-01: stepper 9 bước */
+  .progress-stepper {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 4px;
+    margin: 0 0 20px; padding: 14px 10px;
+    background: var(--panel, #161d2e); border: 1px solid var(--border, #2a3350);
+    border-radius: 10px; overflow-x: auto;
+  }
+  .step-item {
+    flex: 1 1 0; min-width: 74px; display: flex; flex-direction: column;
+    align-items: center; text-align: center; position: relative;
+  }
+  .step-item:not(:last-child)::after {
+    content: ""; position: absolute; top: 11px; left: 55%; width: 90%; height: 2px;
+    background: var(--border, #2a3350); z-index: 0;
+  }
+  .step-item.done:not(:last-child)::after { background: var(--ok, #46c98a); }
+  .step-circle {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--panel-2, #1c2438); border: 2px solid var(--border, #2a3350);
+    color: var(--text-dim, #9aa5c0); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; z-index: 1; margin-bottom: 6px;
+  }
+  .step-item.done .step-circle {
+    background: var(--ok, #46c98a); border-color: var(--ok, #46c98a); color: #08130d;
+  }
+  .step-item.active .step-circle {
+    background: var(--primary, #4f7cff); border-color: var(--primary, #4f7cff);
+    color: white; box-shadow: 0 0 0 3px rgba(79,124,255,.25);
+  }
+  .step-label { font-size: 10px; color: var(--text-dim, #9aa5c0); line-height: 1.3; }
+  .step-item.active .step-label { color: var(--text, #e7ebf5); font-weight: 600; }
+  .step-item.done .step-label { color: var(--ok, #46c98a); }
+
+  /* BR-05: hộp thoại xác nhận xoá nhóm */
+  .confirm-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .confirm-box {
+    background: var(--panel, #161d2e); border: 1px solid var(--border, #2a3350);
+    border-radius: 10px; padding: 20px; width: min(420px, 90vw);
+  }
+  .confirm-box p { margin: 0 0 16px; font-size: 13px; line-height: 1.5; }
+  .confirm-box-actions { display: flex; justify-content: flex-end; gap: 10px; }
+  .confirm-box .btn-danger {
+    background: var(--error, #ef5350); color: white; border: none;
+    border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+  }
+  .confirm-box .btn-cancel {
+    background: var(--panel-2, #1c2438); color: var(--text, #e7ebf5);
+    border: 1px solid var(--border, #2a3350); border-radius: 6px;
+    padding: 8px 14px; font-size: 13px; cursor: pointer;
+  }
+
+  /* BR-04: nút gợi ý tên nhóm tài sản */
+  .suggest-name-btn {
+    background: none; border: 1px dashed var(--primary, #4f7cff); color: var(--primary, #4f7cff);
+    border-radius: 6px; font-size: 11px; padding: 4px 8px; cursor: pointer; align-self: flex-start;
+  }
+  .suggest-name-btn:hover { background: rgba(79,124,255,.1); }
+</style>
 </head>
 <body>
 
@@ -14,6 +146,15 @@
 </header>
 
 <main class="container">
+
+  <!-- ============ BR-01: THANH TIẾN TRÌNH (chỉ các bước hệ thống hiện có) ============ -->
+  <div class="progress-stepper" id="progressStepper">
+    <div class="step-item" data-step="1"><div class="step-circle">1</div><div class="step-label">OCR hồ sơ</div></div>
+    <div class="step-item" data-step="2"><div class="step-circle">2</div><div class="step-label">Gom nhóm tài sản (AI)</div></div>
+    <div class="step-item" data-step="3"><div class="step-circle">3</div><div class="step-label">Xác nhận gom nhóm</div></div>
+    <div class="step-item" data-step="4"><div class="step-circle">4</div><div class="step-label">Kiểm tra &amp; flag rủi ro (B2-B3)</div></div>
+    <div class="step-item" data-step="5"><div class="step-circle">5</div><div class="step-label">Kết quả thẩm định</div></div>
+  </div>
 
   <!-- ============ BƯỚC 1: INPUT ============ -->
   <section class="card" id="startSection">
@@ -78,6 +219,19 @@
   <section class="card hidden" id="resultSection">
     <h2>3. Kết quả thẩm định</h2>
     <div id="resultSummary" class="result-summary"></div>
+
+    <!-- BR-20: tìm kiếm / lọc tài sản -->
+    <div class="result-filter-bar" id="resultFilterBar">
+      <input type="text" id="resultSearchInput" placeholder="🔍 Tìm theo tên chủ tài sản hoặc mã tài sản..." />
+      <select id="resultStatusFilter">
+        <option value="all">Tất cả trạng thái</option>
+        <option value="error">🔴 Có lỗi nghiêm trọng</option>
+        <option value="warning">🟡 Có cảnh báo</option>
+        <option value="ok">🟢 Không cảnh báo</option>
+      </select>
+      <span class="result-filter-count" id="resultFilterCount"></span>
+    </div>
+
     <div id="resultAssets" class="result-assets"></div>
     <a id="downloadResultLink" class="btn btn-secondary" href="#" download>⬇️ Tải file kết quả JSON</a>
   </section>

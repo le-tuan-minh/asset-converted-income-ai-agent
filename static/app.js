@@ -23,6 +23,163 @@ const startSection = $("startSection");
 const groupingSection = $("groupingSection");
 const resultSection = $("resultSection");
 
+// ============================================================
+// BR-09: nhãn nghiệp vụ cho field key kỹ thuật
+// ============================================================
+const FIELD_LABELS = {
+  // owner_info
+  ho_ten: "Họ tên",
+  so_cccd: "Số CCCD",
+  so_cmtnd_cu: "Số CMTND cũ",
+  ngay_sinh: "Ngày sinh",
+  dia_chi_thuong_tru: "Địa chỉ thường trú",
+  // asset_info
+  so_gcn: "Số giấy chứng nhận (GCN)",
+  chu_su_dung_goc: "Chủ sử dụng gốc",
+  chu_su_dung_hien_tai: "Chủ sử dụng hiện tại",
+  bien_dong_lich_su: "Lịch sử biến động",
+  ngay_cap_gcn: "Ngày cấp GCN",
+  ngay_chuyen_nhuong: "Ngày chuyển nhượng",
+  muc_dich_su_dung: "Mục đích sử dụng đất",
+  ma_ky_hieu_dat: "Mã ký hiệu loại đất",
+  dia_chi_tai_san: "Địa chỉ tài sản",
+  dien_tich_tong: "Diện tích tổng",
+  dien_tich_dat_o: "Diện tích đất ở",
+  dien_tich_nha_o: "Diện tích nhà ở",
+  dien_tich_nn: "Diện tích đất nông nghiệp",
+  dien_tich_nts: "Diện tích đất nuôi trồng thủy sản",
+  dien_tich_tmdv: "Diện tích đất TMDV",
+  co_thong_tin_tang_cho: "Có thông tin tặng cho",
+  thuoc_du_an: "Thuộc dự án",
+  ten_du_an: "Tên dự án",
+  can_cu_phap_ly_du_an: "Căn cứ pháp lý dự án",
+  nguon_goc_tai_san: "Nguồn gốc tài sản",
+  ben_mua_hop_dong: "Bên mua (trên hợp đồng)",
+  ben_mua_so_cccd_hop_dong: "Số CCCD bên mua (trên hợp đồng)",
+  ben_ban_hop_dong: "Bên bán (trên hợp đồng)",
+  // identity_check
+  owner_matched: "Chủ tài sản khớp",
+  matched_against: "Đối chiếu với",
+  mismatch_fields: "Trường không khớp",
+  is_tang_cho: "Là tài sản tặng cho",
+  is_thua_ke: "Là tài sản thừa kế",
+  asset_formation_date: "Ngày hình thành tài sản",
+  asset_formation_note: "Ghi chú hình thành tài sản",
+  owner_name_similarity: "Độ tương đồng tên chủ sở hữu",
+  // land_purpose
+  muc_dich: "Mục đích sử dụng",
+  dien_tich_dat_o_du_dieu_kien: "Diện tích đất ở đủ điều kiện",
+  dien_tich_nha_o_du_dieu_kien: "Diện tích nhà ở đủ điều kiện",
+  is_tmdv: "Là đất thương mại dịch vụ (TMDV)",
+  nguon_xac_dinh_du_an: "Nguồn xác định dự án",
+  web_verification_sources: "Nguồn xác minh web",
+  web_verification_summary: "Tóm tắt xác minh web",
+  warning_tmdv: "Cảnh báo TMDV",
+};
+
+// Dịch giá trị Literal sang tiếng Việt dễ hiểu
+const VALUE_LABELS = {
+  matched_against: { chu_hien_tai: "Chủ hiện tại", chu_goc: "Chủ gốc", khong_ro: "Không rõ" },
+  nguon_xac_dinh_du_an: {
+    ho_so_noi_bo: "Hồ sơ nội bộ",
+    rule_based_signal: "Tín hiệu rule-based",
+    web_search: "Tra cứu web",
+    chua_xac_dinh: "Chưa xác định",
+  },
+};
+
+// ============================================================
+// BR-08: chú giải mã ký hiệu đất (Thông tư 08/2024/TT-BTNMT) + đơn vị m²
+// ============================================================
+const LAND_CODE_LABELS = {
+  ONT: "Đất ở tại nông thôn",
+  ODT: "Đất ở tại đô thị",
+  CLN: "Đất trồng cây lâu năm",
+  LUC: "Đất chuyên trồng lúa",
+  LUK: "Đất trồng lúa còn lại",
+  NKH: "Đất nông nghiệp khác",
+  NTS: "Đất nuôi trồng thủy sản",
+  TMD: "Đất thương mại, dịch vụ",
+  SKC: "Đất cơ sở sản xuất, kinh doanh phi nông nghiệp",
+};
+
+const AREA_FIELDS = new Set([
+  "dien_tich_tong", "dien_tich_dat_o", "dien_tich_nha_o",
+  "dien_tich_nn", "dien_tich_nts", "dien_tich_tmdv",
+  "dien_tich_dat_o_du_dieu_kien", "dien_tich_nha_o_du_dieu_kien",
+]);
+
+function fmtArea(v) {
+  if (v === "" || v === null || v === undefined) return "—";
+  return `${v} m²`;
+}
+
+function landCodeTooltip(code) {
+  const name = LAND_CODE_LABELS[String(code || "").trim().toUpperCase()];
+  if (!code) return "—";
+  if (!name) return escapeHtml(code);
+  return `<span class="info-tooltip" title="${escapeHtml(name)}">${escapeHtml(code)} — ${escapeHtml(name)}</span>`;
+}
+
+// ============================================================
+// BR-06: hiển thị đầy đủ nội dung (không rút gọn/ẩn), chống tràn chữ
+// đã xử lý bằng CSS word-break ở index.html.
+// ============================================================
+function renderLongText(text) {
+  return escapeHtml(text);
+}
+
+// ============================================================
+// BR-07: bien_dong_lich_su -> timeline dễ đọc
+// ============================================================
+function parseVNDate(s) {
+  if (!s || typeof s !== "string") return null;
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+}
+
+function renderTimeline(items) {
+  if (!Array.isArray(items) || items.length === 0) return "—";
+  const lis = items
+    .slice()
+    .sort((a, b) => {
+      const da = parseVNDate(a.ngay), db = parseVNDate(b.ngay);
+      if (da && db) return da - db;
+      return 0;
+    })
+    .map((it) => `
+      <li>
+        <b>${escapeHtml(it.ngay || "—")}</b>: ${escapeHtml(it.noi_dung || "")}
+        ${it.chu_moi ? ` <span class="text-dim">(chủ mới: ${escapeHtml(it.chu_moi)})</span>` : ""}
+      </li>
+    `)
+    .join("");
+  return `<ul class="timeline-list">${lis}</ul>`;
+}
+
+// ============================================================
+// BR-14: web_verification_sources -> link bấm được
+// ============================================================
+function shortDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch (e) {
+    return url;
+  }
+}
+
+function renderWebSources(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return "—";
+  return urls
+    .map((u) => `
+      <a class="web-source-link" href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">
+        🔗 ${escapeHtml(u)} <span class="web-source-domain">(${escapeHtml(shortDomain(u))})</span>
+      </a>
+    `)
+    .join("");
+}
+
 // ---------------- Health check ----------------
 (async function checkHealth() {
   const badge = $("apiStatus");
@@ -43,6 +200,23 @@ const resultSection = $("resultSection");
 })();
 
 // ============================================================
+// BR-01: thanh tiến trình (progress stepper) — CHỈ hiển thị các bước
+// hệ thống THỰC SỰ đi qua trong luồng hiện tại (B1a → B1b → B1c → B2-B3),
+// không hiển thị các bước B4+ (kiểm tra CIC, định giá...) vì backend
+// hiện tại (graph.py) chưa triển khai các bước đó.
+// ============================================================
+function setStep(step) {
+  const stepper = $("progressStepper");
+  if (!stepper) return;
+  stepper.querySelectorAll(".step-item").forEach((el) => {
+    const n = Number(el.dataset.step);
+    el.classList.toggle("done", n < step);
+    el.classList.toggle("active", n === step);
+  });
+}
+setStep(1);
+
+// ============================================================
 // BƯỚC 1: bắt đầu xử lý
 // ============================================================
 $("startBtn").addEventListener("click", async () => {
@@ -60,6 +234,7 @@ $("startBtn").addEventListener("click", async () => {
 
   $("startBtn").disabled = true;
   msg.textContent = "⏳ Đang xử lý (OCR + phân loại + AI gom nhóm)...";
+  setStep(1);
 
   try {
     const res = await fetch(`${API_BASE}/api/start`, {
@@ -88,12 +263,14 @@ function handleServerResponse(data) {
     loadGroupingUI(data);
     groupingSection.classList.remove("hidden");
     resultSection.classList.add("hidden");
+    setStep(3); // OCR + gom nhóm AI xong, đang chờ CBTD xác nhận
   } else if (data.status === "done") {
     $("startMsg").textContent = `✅ ${data.message}`;
     $("startMsg").className = "msg ok";
     groupingSection.classList.add("hidden");
     renderResult(data);
     resultSection.classList.remove("hidden");
+    setStep(5); // Đã có kết quả thẩm định — bước cuối trong luồng hiện tại
   }
 }
 
@@ -175,6 +352,34 @@ function confidenceClass(conf) {
   return "conf-low";
 }
 
+// BR-04: gợi ý tên nhóm tài sản theo địa chỉ/dự án thực tế
+function suggestAssetName(group, idx) {
+  if (!group.dia_chi_goi_y) return group.asset_id;
+  const shortAddr = group.dia_chi_goi_y.split(/[-,]/)[0].trim();
+  return `TS${idx + 1} – ${shortAddr}`;
+}
+
+// BR-05: hộp thoại xác nhận dùng chung (xoá nhóm...)
+function showConfirmDialog(message, onConfirm) {
+  const overlay = document.createElement("div");
+  overlay.className = "confirm-overlay";
+  overlay.innerHTML = `
+    <div class="confirm-box">
+      <p>${escapeHtml(message)}</p>
+      <div class="confirm-box-actions">
+        <button type="button" class="btn-cancel">Huỷ</button>
+        <button type="button" class="btn-danger">Xoá</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector(".btn-cancel").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".btn-danger").addEventListener("click", () => {
+    overlay.remove();
+    onConfirm();
+  });
+}
+
 function renderGroups() {
   const container = $("assetGroups");
   container.innerHTML = "";
@@ -185,6 +390,14 @@ function renderGroups() {
     card.dataset.zone = `group:${group.asset_id}`;
 
     const confPct = Math.round((group.grouping_confidence || 0) * 100);
+    // BR-03: liệt kê rõ căn cứ đối chiếu thay vì chỉ 1 câu mô tả chung
+    const criteriaChips = [
+      group.so_gcn_goi_y ? "Số GCN" : null,
+      group.dia_chi_goi_y ? "Địa chỉ" : null,
+    ].filter(Boolean);
+    // BR-04: gợi ý tên nhóm theo địa chỉ thực tế thay vì asset_1/asset_2
+    const suggestedName = suggestAssetName(group, idx);
+
     card.innerHTML = `
       <div class="asset-card-header">
         <input type="text" class="asset-name-input" value="${escapeHtml(group.asset_id)}" />
@@ -193,8 +406,15 @@ function renderGroups() {
       <div class="asset-meta">
         <div><b>Số GCN gợi ý:</b> ${escapeHtml(group.so_gcn_goi_y || "N/A")}</div>
         <div><b>Địa chỉ gợi ý:</b> ${escapeHtml(group.dia_chi_goi_y || "N/A")}</div>
-        <div><b>Lý do AI gom:</b> ${escapeHtml(group.grouping_reason || "N/A")}</div>
+        <div><b>Lý do AI gom:</b> ${escapeHtml(group.grouping_reason || "N/A")}
+          ${criteriaChips.length ? `<span class="hint"> (đối chiếu theo: ${criteriaChips.join(", ")})</span>` : ""}
+        </div>
       </div>
+      ${suggestedName !== group.asset_id ? `
+        <button type="button" class="suggest-name-btn" data-suggest="${escapeHtml(suggestedName)}">
+          ✏️ Dùng tên gợi ý: "${escapeHtml(suggestedName)}"
+        </button>
+      ` : ""}
       <div class="chip-list" data-filelist></div>
       <button class="remove-group-btn" data-remove>🗑 Xóa nhóm này</button>
     `;
@@ -202,16 +422,33 @@ function renderGroups() {
     const chipList = card.querySelector("[data-filelist]");
     group.filenames.forEach((f) => chipList.appendChild(makeChip(f, "group")));
 
-    card.querySelector(".asset-name-input").addEventListener("change", (e) => {
+    const nameInput = card.querySelector(".asset-name-input");
+    nameInput.addEventListener("change", (e) => {
       group.asset_id = e.target.value.trim() || group.asset_id;
       state.dirty = true;
     });
 
+    const suggestBtn = card.querySelector(".suggest-name-btn");
+    if (suggestBtn) {
+      suggestBtn.addEventListener("click", () => {
+        nameInput.value = suggestBtn.dataset.suggest;
+        group.asset_id = suggestBtn.dataset.suggest;
+        state.dirty = true;
+        renderGroups();
+      });
+    }
+
+    // BR-05: xác nhận trước khi xoá nhóm tài sản (thay vì xoá ngay)
     card.querySelector("[data-remove]").addEventListener("click", () => {
-      state.unassigned.push(...group.filenames);
-      state.groups.splice(idx, 1);
-      state.dirty = true;
-      renderAll();
+      showConfirmDialog(
+        `Bạn có chắc muốn xoá nhóm "${group.asset_id}"? ${group.filenames.length} file sẽ được đưa về danh sách "chưa gán tài sản".`,
+        () => {
+          state.unassigned.push(...group.filenames);
+          state.groups.splice(idx, 1);
+          state.dirty = true;
+          renderAll();
+        }
+      );
     });
 
     attachDropzone(card);
@@ -286,6 +523,7 @@ async function submitConfirmation(action) {
   const msg = $("confirmMsg");
   msg.textContent = "⏳ Đang gửi xác nhận và xử lý B2-B3 cho từng tài sản...";
   msg.className = "msg";
+  setStep(4);
 
   const payload = {
     session_id: state.sessionId,
@@ -319,10 +557,36 @@ async function submitConfirmation(action) {
   }
 }
 
+// BR-02: cảnh báo + chặn nếu còn file chưa gán tài sản; cho phép CBTD
+// xác nhận bỏ qua có ghi log lý do (yêu cầu nhập ghi chú bắt buộc).
+function confirmProceedDespiteUnassigned() {
+  if (state.unassigned.length === 0) return true;
+
+  const noteEl = $("editNote");
+  const reason = window.prompt(
+    `⚠️ Còn ${state.unassigned.length} file chưa được gán vào nhóm tài sản nào:\n` +
+    state.unassigned.join(", ") +
+    `\n\nNếu vẫn muốn tiếp tục xử lý mà bỏ qua các file này, vui lòng nhập lý do ` +
+    `(sẽ được ghi lại trong ghi chú xử lý). Để trống hoặc bấm Huỷ để quay lại gán file.`
+  );
+  if (reason === null || reason.trim() === "") return false;
+
+  console.warn("[BR-02] CBTD xác nhận bỏ qua file chưa gán:", state.unassigned, "Lý do:", reason);
+  if (noteEl) {
+    noteEl.value = (noteEl.value ? noteEl.value + " | " : "") +
+      `[Bỏ qua ${state.unassigned.length} file chưa gán] ${reason.trim()}`;
+  }
+  return true;
+}
+
 $("confirmAiBtn").addEventListener("click", () => {
+  if (!confirmProceedDespiteUnassigned()) return;
   submitConfirmation(state.dirty ? "edit" : "confirm");
 });
-$("confirmEditBtn").addEventListener("click", () => submitConfirmation("edit"));
+$("confirmEditBtn").addEventListener("click", () => {
+  if (!confirmProceedDespiteUnassigned()) return;
+  submitConfirmation("edit");
+});
 
 // ============================================================
 // Modal xem file (phóng to, scroll, zoom)
@@ -375,27 +639,61 @@ $("zoomResetBtn").addEventListener("click", () => { zoomLevel = 1; applyZoom(); 
 // ============================================================
 // BƯỚC 3: render kết quả thẩm định
 // ============================================================
+// BR-13: xác định trạng thái Xanh/Vàng/Đỏ từ severity thực tế của flags,
+// không chỉ dựa vào has_critical_flags (vốn dễ hiểu nhầm khi vẫn còn WARNING).
+function computeAssetStatus(r) {
+  const flags = r.flags || [];
+  const nError = flags.filter((f) => f.severity === "ERROR").length;
+  const nWarning = flags.filter((f) => f.severity === "WARNING").length;
+  let status = "ok";
+  if (nError > 0 || r.error) status = "error";
+  else if (nWarning > 0) status = "warning";
+  return { status, nError, nWarning };
+}
+
+function statusDotHtml(status) {
+  const cls = status === "error" ? "status-error" : status === "warning" ? "status-warning" : "status-ok";
+  const label = status === "error" ? "Có lỗi nghiêm trọng" : status === "warning" ? "Có cảnh báo cần xem xét" : "Không cảnh báo";
+  return `<span class="status-dot ${cls}" title="${escapeHtml(label)}"></span>`;
+}
+
 function renderResult(data) {
   const summary = $("resultSummary");
-  const nAssets = (data.asset_results || []).length;
-  const nErrors = (data.asset_results || []).filter((r) => r.has_critical_flags).length;
+  const results = data.asset_results || [];
+  const nAssets = results.length;
+  const nErrorAssets = results.filter((r) => computeAssetStatus(r).status === "error").length;
+  const nWarningAssets = results.filter((r) => computeAssetStatus(r).status === "warning").length;
+
   summary.innerHTML = `
     <span class="stat-pill">📁 ${escapeHtml(data.session_id)}</span>
     <span class="stat-pill">🏠 ${nAssets} tài sản</span>
-    <span class="stat-pill ${nErrors ? "" : ""}">${nErrors ? "🔴" : "🟢"} ${nErrors} tài sản có lỗi nghiêm trọng</span>
+    <span class="stat-pill">${nErrorAssets ? "🔴" : "🟢"} ${nErrorAssets} tài sản có lỗi nghiêm trọng</span>
+    <span class="stat-pill">🟡 ${nWarningAssets} tài sản có cảnh báo</span>
   `;
 
   const assetsEl = $("resultAssets");
   assetsEl.innerHTML = "";
 
-  (data.asset_results || []).forEach((r) => {
+  results.forEach((r) => {
+    const { status, nError, nWarning } = computeAssetStatus(r);
+
     const card = document.createElement("div");
     card.className = "asset-result-card" + (r.has_critical_flags ? " has-error" : "");
+    // BR-20: gắn sẵn dữ liệu để lọc/tìm kiếm
+    card.dataset.status = status;
+    const ownerName = (r.owner_info && r.owner_info.ho_ten) || "";
+    card.dataset.searchText = `${r.asset_id || ""} ${ownerName}`.toLowerCase();
 
     const infoBlocks = ["owner_info", "asset_info", "identity_check", "land_purpose"]
       .filter((k) => r[k] && typeof r[k] === "object")
       .map((k) => renderInfoBlock(k, r[k]))
       .join("");
+
+    // Badge số lượng theo mức ngay trên thẻ tài sản
+    const severityChips = `
+      ${nError ? `<span class="severity-chip sev-error">${nError} nghiêm trọng</span>` : ""}
+      ${nWarning ? `<span class="severity-chip sev-warning">${nWarning} cảnh báo</span>` : ""}
+    `;
 
     const flagsHtml = (r.flags || [])
       .map((f) => `
@@ -407,12 +705,16 @@ function renderResult(data) {
       `)
       .join("") || "<div class='hint'>Không có flag nào.</div>";
 
-    const warningsHtml = (r.warnings || []).length
-      ? `<ul>${r.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`
+    // BR-11: chỉ hiện phần "Cảnh báo khác" KHÔNG trùng nội dung với flags ở trên
+    // (tránh lặp lại cùng 1 cảnh báo ở 2 chỗ gây hiểu nhầm là 2 vấn đề khác nhau)
+    const flagDescriptions = new Set((r.flags || []).map((f) => (f.description || "").trim()));
+    const uniqueWarnings = (r.warnings || []).filter((w) => !flagDescriptions.has((w || "").trim()));
+    const warningsHtml = uniqueWarnings.length
+      ? `<ul>${uniqueWarnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`
       : "";
 
     card.innerHTML = `
-      <h3>${r.has_critical_flags ? "🔴" : "🟢"} ${escapeHtml(r.asset_id)}
+      <h3>${statusDotHtml(status)} ${escapeHtml(r.asset_id)} ${severityChips}
         ${r.error ? `<span class="badge badge-error">${escapeHtml(r.error)}</span>` : ""}
       </h3>
       <div class="info-grid">${infoBlocks}</div>
@@ -425,7 +727,40 @@ function renderResult(data) {
 
   const dlLink = $("downloadResultLink");
   dlLink.href = `${API_BASE}/api/session/${state.sessionId}/result-file`;
+
+  // BR-20: áp dụng lại bộ lọc hiện có (nếu người dùng đã gõ trước đó)
+  applyResultFilter();
 }
+
+// ============================================================
+// BR-20: tìm kiếm / lọc tài sản theo trạng thái, tên chủ, mã tài sản
+// ============================================================
+function applyResultFilter() {
+  const searchEl = $("resultSearchInput");
+  const statusEl = $("resultStatusFilter");
+  const countEl = $("resultFilterCount");
+  if (!searchEl || !statusEl) return;
+
+  const q = searchEl.value.trim().toLowerCase();
+  const statusFilter = statusEl.value;
+  const cards = document.querySelectorAll("#resultAssets .asset-result-card");
+  let visible = 0;
+
+  cards.forEach((card) => {
+    const text = card.dataset.searchText || "";
+    const status = card.dataset.status || "ok";
+    const matchesText = !q || text.includes(q);
+    const matchesStatus = statusFilter === "all" || status === statusFilter;
+    const show = matchesText && matchesStatus;
+    card.classList.toggle("filtered-out", !show);
+    if (show) visible++;
+  });
+
+  if (countEl) countEl.textContent = `Hiển thị ${visible}/${cards.length} tài sản`;
+}
+
+if ($("resultSearchInput")) $("resultSearchInput").addEventListener("input", applyResultFilter);
+if ($("resultStatusFilter")) $("resultStatusFilter").addEventListener("change", applyResultFilter);
 
 function renderInfoBlock(key, obj) {
   const titles = {
@@ -434,10 +769,40 @@ function renderInfoBlock(key, obj) {
     identity_check: "🪪 Kiểm tra nhân thân",
     land_purpose: "📄 Mục đích sử dụng đất",
   };
+
   const rows = Object.entries(obj)
     .filter(([k]) => k !== "raw_text")
-    .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${escapeHtml(formatValue(v))}</td></tr>`)
+    .map(([k, v]) => {
+      // BR-09: nhãn nghiệp vụ tiếng Việt thay cho field key kỹ thuật
+      const label = FIELD_LABELS[k] || k;
+      let valueHtml;
+
+      if (k === "bien_dong_lich_su") {
+        // BR-07: JSON biến động -> timeline dễ đọc
+        valueHtml = renderTimeline(v);
+      } else if (k === "web_verification_sources") {
+        // BR-14: mảng URL -> link bấm được
+        valueHtml = renderWebSources(v);
+      } else if (k === "ma_ky_hieu_dat") {
+        // BR-08: chú giải mã ký hiệu đất
+        valueHtml = landCodeTooltip(v);
+      } else if (AREA_FIELDS.has(k)) {
+        // BR-08: kèm đơn vị m²
+        valueHtml = escapeHtml(fmtArea(v));
+      } else if (VALUE_LABELS[k] && VALUE_LABELS[k][v] !== undefined) {
+        valueHtml = escapeHtml(VALUE_LABELS[k][v]);
+      } else if (typeof v === "boolean") {
+        valueHtml = escapeHtml(v ? "Có" : "Không");
+      } else {
+        // BR-06: rút gọn chữ dài + nút "xem đầy đủ"
+        const str = formatValue(v);
+        valueHtml = typeof str === "string" ? renderLongText(str) : escapeHtml(String(str));
+      }
+
+      return `<tr><td>${escapeHtml(label)}</td><td>${valueHtml}</td></tr>`;
+    })
     .join("");
+
   return `
     <div class="info-block">
       <h4>${titles[key] || key}</h4>
@@ -447,7 +812,9 @@ function renderInfoBlock(key, obj) {
 }
 
 function formatValue(v) {
-  if (v === null || v === undefined) return "—";
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Có" : "Không";
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "—";
   if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
