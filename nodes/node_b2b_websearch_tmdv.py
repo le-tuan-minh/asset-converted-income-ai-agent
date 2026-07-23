@@ -16,12 +16,22 @@ from schemas import AssetInfo, LandPurposeResult
 from utils.llm_config import get_llm
 from utils.parsing_utils import parse_json_safe
 
-MAX_TOOL_CALLS = 4
+MAX_TOOL_CALLS = 3
 
 AGENT_SYSTEM_PROMPT = """Bạn là trợ lý tra cứu thông tin quy hoạch/dự án bất động sản
 tại Việt Nam. Bạn có công cụ tavily_search để tìm kiếm trên web. Nhiệm vụ: xác
 định xem thửa đất/dự án được mô tả có thuộc một dự án đầu tư đã được phê duyệt
-hay không. Sau khi tra cứu, trả lời CHỈ bằng JSON:
+hay không.
+
+QUAN TRỌNG: chỉ điền can_cu_phap_ly_du_an nếu tìm được SỐ QUYẾT ĐỊNH/VĂN BẢN
+PHÁP LÝ cụ thể (vd "Quyết định số .../QĐ-UBND ngày ...") từ nguồn CHÍNH THỐNG
+(cổng thông tin UBND/Sở ban ngành, không phải trang môi giới/marketing bất
+động sản). Nếu chỉ tìm thấy mô tả marketing từ các trang bất động sản/môi giới
+(không có số quyết định), để can_cu_phap_ly_du_an="" và tom_tat phải NÊU RÕ
+rằng thông tin chỉ mang tính tham khảo từ nguồn thương mại, chưa có căn cứ
+pháp lý chính thức.
+
+Sau khi tra cứu, trả lời CHỈ bằng JSON:
 {"thuoc_du_an": true/false/null, "ten_du_an": "", "can_cu_phap_ly_du_an": "", "tom_tat": ""}
 Nếu không tìm thấy căn cứ đủ tin cậy, để thuoc_du_an=null."""
 
@@ -106,15 +116,45 @@ async def _run_web_agent(asset_info: AssetInfo, land_purpose: LandPurposeResult)
     return verdict, urls_unique
 
 
-async def tmdv_websearch_asset_async(asset_info: AssetInfo, land_purpose: LandPurposeResult, notes: list[str]) -> LandPurposeResult:
-    """B2b cho 1 tài sản — chỉ chạy nếu is_tmdv=True và thuoc_du_an chưa xác định."""
-    if not (land_purpose.is_tmdv and land_purpose.thuoc_du_an is None):
+async def tmdv_websearch_asset_async(
+    asset_info: AssetInfo,
+    land_purpose: LandPurposeResult,
+    notes: list[str],
+    rule_based_tmdv_signal: bool = False,
+) -> LandPurposeResult:
+    """
+    B2b cho 1 tài sản — chạy nếu (is_tmdv=True HOẶC rule_based_tmdv_signal=True)
+    và thuoc_du_an chưa xác định.
+
+    ĐÃ SỬA (fix #3, defense-in-depth): trước đây điều kiện CHỈ dựa vào
+    land_purpose.is_tmdv (field do LLM set) — nếu vì lý do nào đó is_tmdv vẫn
+    là False khi tới bước này (vd override ở B2a/fix #1 chưa kịp áp dụng, hoặc
+    một luồng gọi khác trong tương lai bỏ qua B2a's cross-check), B2b sẽ bị
+    skip HOÀN TOÀN và im lặng, không log gì cả — rất khó debug. Giờ B2b nhận
+    thêm 1 tín hiệu rule-based độc lập (được caller truyền vào), không phụ
+    thuộc 100% vào is_tmdv của LLM.
+    """
+    is_tmdv_effective = land_purpose.is_tmdv or rule_based_tmdv_signal
+    if not (is_tmdv_effective and land_purpose.thuoc_du_an is None):
+        notes.append(
+            f"[B2b] Bỏ qua tra cứu web (is_tmdv={land_purpose.is_tmdv}, "
+            f"rule_based_tmdv_signal={rule_based_tmdv_signal}, "
+            f"thuoc_du_an={land_purpose.thuoc_du_an})."
+        )
         return land_purpose
+
+    if not land_purpose.is_tmdv and rule_based_tmdv_signal:
+        land_purpose = land_purpose.model_copy(update={"is_tmdv": True})
+        notes.append(
+            "[B2b] Rule-based signal kích hoạt web search dù land_purpose.is_tmdv "
+            "vẫn là False lúc vào B2b — đã đồng thời set is_tmdv=True."
+        )
 
     if not os.getenv("TAVILY_API_KEY"):
         notes.append("[B2b] Bỏ qua tra cứu web: chưa cấu hình TAVILY_API_KEY.")
         return land_purpose
 
+    # ─── PHẦN BỊ THIẾU — đây là phần thực sự gọi web search và cập nhật kết quả ───
     print("[B2b] Đất TMDV chưa xác định thuộc dự án — tra cứu web bổ sung qua Tavily...")
     try:
         verdict, urls = await _run_web_agent(asset_info, land_purpose)
@@ -131,6 +171,12 @@ async def tmdv_websearch_asset_async(asset_info: AssetInfo, land_purpose: LandPu
             "nguon_xac_dinh_du_an": "web_search",
             "web_verification_sources": urls,
             "web_verification_summary": verdict.get("tom_tat", ""),
+            # ĐÃ SỬA (fix #5): xoá cảnh báo "chưa xác định" cũ vì đã có kết
+            # luận mới từ web search — tránh báo cáo mâu thuẫn nhau.
+            "warning_tmdv": (
+                "" if thuoc_du_an
+                else "Web search xác định KHÔNG thuộc dự án được phê duyệt — cần cán bộ tín dụng đối chiếu."
+            ),
         })
         notes.append(f"[B2b] Web search kết luận thuoc_du_an={thuoc_du_an}.")
     else:

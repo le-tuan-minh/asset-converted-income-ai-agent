@@ -178,16 +178,27 @@ def _cross_check_tmdv_rule_based(land_purpose, asset_info, grouped, flags, notes
     signal = detect_tmdv_rule_based(full_text)
 
     if signal["is_tmdv_signal"] and not land_purpose.is_tmdv:
+        # ĐÃ SỬA (fix #1): trước đây chỉ flag cảnh báo rồi để nguyên is_tmdv=False
+        # đi tiếp, khiến B2b (web search) và các rule TMDV ở B3 bị bỏ qua oan dù
+        # văn bản GCN ghi rõ "Đất thương mại, dịch vụ" — field này là string-match
+        # trực tiếp trên văn bản gốc, đáng tin cậy hơn phán đoán của LLM, nên giờ
+        # tự động ghi đè thay vì chỉ cảnh báo.
+        land_purpose = land_purpose.model_copy(update={"is_tmdv": True})
         flags.append(FlagItem(
             flag_type="TMDV_KHONG_KHOP_RULE_BASED",
             severity="WARNING",
             description=(
                 "Rule-based phát hiện tín hiệu đất thương mại dịch vụ (TMD) trong văn bản, "
-                "nhưng LLM không gắn is_tmdv=True. Cần cán bộ tín dụng đối chiếu lại."
+                "nhưng LLM không gắn is_tmdv=True. Đã tự động ghi đè is_tmdv=True dựa trên "
+                "rule-based (string-match trực tiếp trên văn bản gốc, đáng tin cậy hơn cho "
+                "field này). Cần cán bộ tín dụng đối chiếu lại để xác nhận."
             ),
             affected_field="land_purpose.is_tmdv",
         ))
-        notes.append("[B2a] Rule-based: có tín hiệu TMDV nhưng LLM bỏ sót is_tmdv.")
+        notes.append(
+            "[B2a] Rule-based override: is_tmdv=True (LLM đã bỏ sót, rule-based "
+            "phát hiện tín hiệu TMD rõ ràng trong văn bản)."
+        )
 
     if land_purpose.is_tmdv and land_purpose.thuoc_du_an is None:
         if signal["project_keyword_hit"] and not signal["negative_project_signal"]:
@@ -210,6 +221,39 @@ def _cross_check_tmdv_rule_based(land_purpose, asset_info, grouped, flags, notes
 
     if land_purpose.thuoc_du_an is not None and land_purpose.nguon_xac_dinh_du_an == "chua_xac_dinh":
         land_purpose = land_purpose.model_copy(update={"nguon_xac_dinh_du_an": "ho_so_noi_bo"})
+    
+    # ĐÃ SỬA (fix #4): LLM đôi khi kết luận thuoc_du_an=True chỉ vì địa chỉ
+    # tài sản có tên "nghe giống" dự án (vd "Golden Hills City" nằm trong địa
+    # chỉ), dù KHÔNG có căn cứ pháp lý cụ thể (số quyết định phê duyệt chủ
+    # trương đầu tư / GCN đầu tư) trong hồ sơ. Tên địa chỉ KHÔNG phải căn cứ
+    # pháp lý — hạ về null và bắt buộc xác minh bổ sung (qua B2b/web search
+    # hoặc cán bộ tín dụng), thay vì chấp nhận kết luận thiếu căn cứ của LLM.
+    if (
+        land_purpose.is_tmdv
+        and land_purpose.thuoc_du_an is True
+        and land_purpose.nguon_xac_dinh_du_an == "ho_so_noi_bo"
+        and not land_purpose.can_cu_phap_ly_du_an.strip()
+        and not signal["decision_numbers_found"]
+    ):
+        flags.append(FlagItem(
+            flag_type="TMDV_CAN_XAC_MINH_THU_CONG",
+            severity="WARNING",
+            description=(
+                "LLM kết luận 'thuộc dự án' chỉ dựa vào tên gọi trong địa chỉ tài sản "
+                "(vd tên khu đô thị/dự án xuất hiện trong địa chỉ), KHÔNG có căn cứ pháp lý "
+                "cụ thể (số quyết định phê duyệt chủ trương đầu tư / giấy chứng nhận đầu tư) "
+                "trong hồ sơ. Đã hạ về 'chưa xác định' để bắt buộc xác minh bổ sung."
+            ),
+            affected_field="land_purpose.thuoc_du_an",
+        ))
+        notes.append(
+            "[B2a] Downgrade: thuoc_du_an True→None vì thiếu căn cứ pháp lý cụ thể "
+            "(chỉ dựa vào tên gọi trong địa chỉ, chưa đủ để khẳng định thuộc dự án)."
+        )
+        land_purpose = land_purpose.model_copy(update={
+            "thuoc_du_an": None,
+            "nguon_xac_dinh_du_an": "chua_xac_dinh",
+        })
 
     if land_purpose.ma_ky_hieu_dat and not asset_info.ma_ky_hieu_dat:
         asset_info = asset_info.model_copy(update={"ma_ky_hieu_dat": land_purpose.ma_ky_hieu_dat})

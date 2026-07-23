@@ -23,6 +23,7 @@ from schemas import GraphState, DocumentItem, AssetGroupCandidate, AssetResult, 
 from nodes.node_b2a_extract_verify import verify_asset_async
 from nodes.node_b2b_websearch_tmdv import tmdv_websearch_asset_async
 from nodes.node_b3_flag import flag_asset
+from cores.land_rules import detect_tmdv_rule_based
 
 
 async def _process_single_asset(group: AssetGroupCandidate, all_documents: list[DocumentItem]) -> AssetResult:
@@ -63,7 +64,16 @@ async def _process_single_asset(group: AssetGroupCandidate, all_documents: list[
             has_critical_flags=True, error=error,
         )
 
-    land_purpose = await tmdv_websearch_asset_async(asset_info, land_purpose, notes)
+    # Fix #3: tính lại tín hiệu rule-based độc lập từ raw_text của chính tài
+    # sản này (không phụ thuộc vào is_tmdv do LLM/B2a trả về) để truyền cho
+    # B2b làm lưới an toàn thứ hai.
+    full_text_for_tmdv = "\n".join(d.raw_text for d in documents)
+    tmdv_signal = detect_tmdv_rule_based(full_text_for_tmdv)
+
+    land_purpose = await tmdv_websearch_asset_async(
+        asset_info, land_purpose, notes,
+        rule_based_tmdv_signal=tmdv_signal["is_tmdv_signal"],
+    )
     flags, warnings, notes = flag_asset(owner_info, asset_info, identity_check, land_purpose, flags, warnings, notes)
 
     has_critical = any(f.severity == "ERROR" for f in flags)

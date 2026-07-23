@@ -155,7 +155,7 @@ def run_confirm(action: str, edited_json: str, note: str, output_path: str, stat
 
 
 with gr.Blocks(title="Thẩm định TSBĐ — AI Agent") as demo:
-    gr.Markdown("# 🏦 Thẩm định tín dụng AI Agent — Tài sản bảo đảm")
+    gr.Markdown("# 🏦 AI Agent Thẩm định tín dụng — Tài sản bảo đảm")
     gr.Markdown(
         "Nhập đường dẫn folder chứa giấy tờ đầu vào (CCCD, GCN, hợp đồng, ...). "
         "Có thể chứa nhiều tài sản trong cùng 1 hồ sơ."
