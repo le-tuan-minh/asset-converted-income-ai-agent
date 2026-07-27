@@ -316,3 +316,20 @@ textarea { width: 100%; resize: vertical; font-family: inherit; }
   border: none;
   background: white;
 }
+
+/* ★ FIX: box hiển thị flag CẤP HỒ SƠ (vd thiếu CCCD/GCN ở B1) — nằm ngay
+   trên danh sách tài sản trong bước 3, để cán bộ tín dụng thấy ngay lý do
+   hồ sơ bị dừng dù asset_results rỗng. */
+.doc-level-flags {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+.doc-level-flags.has-error {
+  border-color: var(--error);
+  background: rgba(239, 83, 80, .08);
+}
+.doc-level-flags h3 { margin: 0 0 6px; font-size: 15px; }
+.doc-level-flags .flag-list { margin-top: 10px; }

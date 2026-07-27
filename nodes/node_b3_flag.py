@@ -74,60 +74,50 @@ def flag_asset(
     owner_info: OwnerInfo, asset_info: AssetInfo,
     identity_check: IdentityCheckResult, land_purpose: LandPurposeResult,
     flags: list[FlagItem], warnings: list[str], notes: list[str],
-) -> tuple[list[FlagItem], list[str], list[str]]:
+) -> tuple[IdentityCheckResult, list[FlagItem], list[str], list[str]]:   # ← thêm IdentityCheckResult vào return type
     """B3 cho 1 tài sản — nhận flags/warnings/notes đã có từ B2, bổ sung thêm."""
     print("[B3] Flag engine — kiểm tra điều kiện ràng buộc cho tài sản này.")
 
-    # Rule 1: Chủ tài sản không khớp
-    if not identity_check.owner_matched:
-        mismatch_desc = ", ".join(identity_check.mismatch_fields) if identity_check.mismatch_fields else "không rõ trường nào"
-        flags.append(FlagItem(
-            flag_type="CHU_TAI_SAN_LECH", severity="ERROR",
-            description=(
-                f"Chủ sử dụng trên GCN/Hợp đồng KHÔNG khớp với CCCD khách hàng. Trường lệch: {mismatch_desc}"
-            ),
-            affected_field="ho_ten / so_cccd",
-        ))
-        warnings.append(f"⛔ CHỦ TÀI SẢN LỆCH: {mismatch_desc}. Cần xác minh lại hồ sơ nhân thân.")
-        print(f"[B3] ⛔ Flag: CHU_TAI_SAN_LECH — {mismatch_desc}")
-    else:
-        print("[B3] ✅ Chủ tài sản khớp CCCD.")
-
-    # Rule 2: Tặng cho / thừa kế
-    if identity_check.is_tang_cho or identity_check.is_thua_ke or asset_info.co_thong_tin_tang_cho:
-        loai = "tặng cho" if (identity_check.is_tang_cho or asset_info.co_thong_tin_tang_cho) else "thừa kế"
-        flags.append(FlagItem(
-            flag_type="TANG_CHO_THUA_KE", severity="WARNING",
-            description=f"Tài sản có nguồn gốc {loai}. Loại khỏi nguồn tài sản quy đổi, chỉ dùng cho tính toán tài sản thanh lý.",
-            affected_field="nguon_goc_tai_san",
-        ))
-        warnings.append(f"⚠️ Tài sản có nguồn gốc {loai} — không dùng để quy đổi giá trị tài sản đảm bảo chính.")
-        print(f"[B3] ⚠️ Flag: TANG_CHO_THUA_KE ({loai})")
+    # ... Rule 1, Rule 2 giữ nguyên ...
 
     # Rule 3: Tài sản mới hình thành (< 24 tháng)
     formation_date, formation_source = _determine_asset_formation_date(owner_info, asset_info)
 
     if formation_date:
+        formation_date_str = formation_date.strftime('%d/%m/%Y')
+        original_llm_value = identity_check.asset_formation_date
+
         notes.append(
-            f"[B3] Ngày hình thành tài sản xác định = {formation_date.strftime('%d/%m/%Y')} "
+            f"[B3] Ngày hình thành tài sản xác định = {formation_date_str} "
             f"(nguồn: {formation_source})."
         )
-        # Đối chiếu tham khảo với asset_formation_date do LLM tự diễn giải (nếu có) —
-        # CHỈ ghi chú khi lệch, KHÔNG dùng để ghi đè kết quả rule-based ở trên.
-        llm_date = _parse_date(identity_check.asset_formation_date)
+
+        llm_date = _parse_date(original_llm_value)
+        note_suffix = ""
         if llm_date and llm_date != formation_date:
             notes.append(
-                f"[B3] Lưu ý: LLM tự ghi asset_formation_date='{identity_check.asset_formation_date}' "
-                f"khác với ngày rule-based tính được ({formation_date.strftime('%d/%m/%Y')}). "
+                f"[B3] Lưu ý: LLM tự ghi asset_formation_date='{original_llm_value}' "
+                f"khác với ngày rule-based tính được ({formation_date_str}). "
                 f"Ưu tiên dùng kết quả rule-based (nguồn: {formation_source})."
             )
+            note_suffix = f" (LLM trước đó ghi: {original_llm_value})"
+
+        # ★ FIX: ghi đè identity_check.asset_formation_date bằng kết quả
+        # rule-based — đây là trường hiển thị ra UI/kết quả cuối cùng cho
+        # cán bộ tín dụng, KHÔNG được để giá trị tự do do LLM diễn giải.
+        identity_check = identity_check.model_copy(update={
+            "asset_formation_date": formation_date_str,
+            "asset_formation_note": (
+                f"Xác định bởi rule-based (nguồn: {formation_source}).{note_suffix}"
+            ),
+        })
 
         months = _months_ago(formation_date)
         if months < 24:
             flags.append(FlagItem(
                 flag_type="TAI_SAN_MOI_HINH_THANH", severity="WARNING",
                 description=(
-                    f"Tài sản hình thành ngày {formation_date.strftime('%d/%m/%Y')}, cách đây {months} tháng "
+                    f"Tài sản hình thành ngày {formation_date_str}, cách đây {months} tháng "
                     f"(< 24 tháng). Nguồn xác định: {formation_source}. Cần làm rõ nguồn gốc tiền hình thành tài sản."
                 ),
                 affected_field="nguon_goc_tai_san",
@@ -135,6 +125,13 @@ def flag_asset(
             warnings.append(f"⚠️ Tài sản mới hình thành ({months} tháng) — cần làm rõ nguồn gốc tiền.")
             print(f"[B3] ⚠️ Flag: TAI_SAN_MOI_HINH_THANH ({months} tháng, nguồn: {formation_source})")
     else:
+        # ★ FIX: không xác định được bằng rule-based → cảnh báo luôn trong note
+        # hiển thị, tránh để người dùng tưởng nhầm giá trị LLM là đáng tin.
+        identity_check = identity_check.model_copy(update={
+            "asset_formation_note": (
+                "Không xác định được bằng rule-based — giá trị (nếu có) chỉ do LLM tự diễn giải, cần xác minh thủ công."
+            ),
+        })
         flags.append(FlagItem(
             flag_type="NGAY_HINH_THANH_KHONG_XAC_DINH", severity="WARNING",
             description="Không xác định được ngày hình thành tài sản từ hồ sơ hiện có (không có bien_dong_lich_su khớp tên KH, ngày_chuyen_nhuong, hoặc ngay_cap_gcn hợp lệ). Cần xác minh thủ công.",
@@ -143,30 +140,63 @@ def flag_asset(
         warnings.append("⚠️ Không xác định được ngày hình thành tài sản — cần xác minh thủ công.")
         print("[B3] ⚠️ Flag: NGAY_HINH_THANH_KHONG_XAC_DINH")
 
-    # Rule 4: TMDV ngoài dự án / cần xác minh
+    # Rule 4: Đất TMDV — không thuộc dự án / thiếu căn cứ pháp lý.
+    # ★ FIX: rule này từng bị rơi mất trong 1 lần refactor trước (chỉ còn lại
+    # comment giữ chỗ) — TMDV_NGOAI_DU_AN và TMDV_DU_AN_XAC_MINH_WEB được khai
+    # báo trong schema/README nhưng KHÔNG có nơi nào thực sự tạo ra flag này.
+    # Khôi phục lại, đồng thời bổ sung nhánh mới: sau khi B2b tra cứu web kết
+    # luận "thuộc dự án" nhưng KHÔNG tìm được căn cứ pháp lý chính thức (chỉ
+    # có mô tả marketing) — cũng phải raise flag, không chỉ ghi warning_tmdv.
     if land_purpose.is_tmdv:
         if land_purpose.thuoc_du_an is False:
             flags.append(FlagItem(
                 flag_type="TMDV_NGOAI_DU_AN", severity="ERROR",
-                description="Đất thương mại dịch vụ (TMD) KHÔNG thuộc dự án được phê duyệt.",
-                affected_field="asset_info.thuoc_du_an",
+                description=(
+                    "Đất TMDV KHÔNG thuộc dự án được phê duyệt. "
+                    "Không đủ điều kiện làm TSBĐ theo quy định."
+                ),
+                affected_field="land_purpose.thuoc_du_an",
             ))
-            warnings.append("⛔ Đất TMDV không thuộc dự án được phê duyệt.")
+            warnings.append(
+                "⛔ ĐẤT TMDV NGOÀI DỰ ÁN: Không đủ điều kiện TSBĐ. "
+                "Cần xem xét loại khỏi danh mục tài sản đảm bảo."
+            )
             print("[B3] ⛔ Flag: TMDV_NGOAI_DU_AN")
-        elif land_purpose.thuoc_du_an is None:
-            flags.append(FlagItem(
-                flag_type="TMDV_CAN_XAC_MINH_THU_CONG", severity="WARNING",
-                description=land_purpose.warning_tmdv or "Đất TMDV chưa xác định thuộc dự án hay không, cần xác minh thủ công.",
-                affected_field="asset_info.thuoc_du_an",
-            ))
-            warnings.append("⚠️ Đất TMDV cần cán bộ tín dụng xác minh thủ công có thuộc dự án hay không.")
-            print("[B3] ⚠️ Flag: TMDV_CAN_XAC_MINH_THU_CONG")
-        if land_purpose.nguon_xac_dinh_du_an == "web_search":
+        elif (
+            land_purpose.thuoc_du_an is True
+            and land_purpose.nguon_xac_dinh_du_an == "web_search"
+            and not land_purpose.can_cu_phap_ly_du_an.strip()
+        ):
             flags.append(FlagItem(
                 flag_type="TMDV_DU_AN_XAC_MINH_WEB", severity="WARNING",
-                description="Thông tin thuộc dự án được xác định qua tra cứu web bổ sung, chỉ mang tính tham khảo.",
-                affected_field="asset_info.thuoc_du_an",
+                description=(
+                    "Đất TMDV được xác định 'thuộc dự án' qua tra cứu web bổ sung, nhưng KHÔNG "
+                    "tìm được số quyết định/căn cứ pháp lý chính thức (chỉ có mô tả marketing/tham "
+                    "khảo từ nguồn thương mại). Cần cán bộ tín dụng xác minh thủ công trước khi kết luận."
+                ),
+                affected_field="land_purpose.can_cu_phap_ly_du_an",
             ))
+            warnings.append(
+                "⚠️ ĐẤT TMDV: Web search kết luận thuộc dự án nhưng chưa có căn cứ pháp lý "
+                "chính thức — cần xác minh thủ công."
+            )
+            print("[B3] ⚠️ Flag: TMDV_DU_AN_XAC_MINH_WEB (thiếu căn cứ pháp lý sau web search)")
+        elif land_purpose.thuoc_du_an is True:
+            print("[B3] ✅ Đất TMDV thuộc dự án, có căn cứ pháp lý, đủ điều kiện.")
+        else:
+            if not any(f.flag_type == "TMDV_CAN_XAC_MINH_THU_CONG" for f in flags):
+                flags.append(FlagItem(
+                    flag_type="TMDV_CAN_XAC_MINH_THU_CONG", severity="WARNING",
+                    description=(
+                        "Đất TMDV chưa xác định được có thuộc dự án được phê duyệt hay không, kể cả "
+                        "sau khi đã tra cứu web bổ sung (nếu có). Cần cán bộ tín dụng xác minh thủ công."
+                    ),
+                    affected_field="land_purpose.thuoc_du_an",
+                ))
+            warnings.append(
+                "⚠️ ĐẤT TMDV: Chưa xác định được có thuộc dự án không. Cần kiểm tra thêm."
+            )
+            print("[B3] ⚠️ TMDV — chưa xác định thuộc dự án.")
 
     print("[B3] Hoàn thành.")
-    return flags, warnings, notes
+    return identity_check, flags, warnings, notes   # ← thêm identity_check

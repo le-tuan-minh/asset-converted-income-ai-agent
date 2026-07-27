@@ -272,6 +272,20 @@ def health():
 # ─────────────────────────────────────────────
 # Serve frontend tĩnh (HTML/CSS/JS tách riêng khỏi Gradio)
 # ─────────────────────────────────────────────
+class NoCacheStaticFiles(StaticFiles):
+    """StaticFiles mặc định để trình duyệt cache theo heuristic (không có
+    Cache-Control) — khi sửa app.js/index.html/style.css rồi reload, trình
+    duyệt có thể vẫn dùng bản JS cũ trong cache, khiến fix "đã sửa trong code"
+    nhưng "không thấy hiệu lực trên UI" (rất khó debug vì code trên đĩa đúng).
+    Ép no-cache cho toàn bộ static/ vì đây là server nội bộ chạy dev/nội bộ
+    ngân hàng, không phục vụ CDN quy mô lớn cần cache aggressive."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
+
 _STATIC_DIR = Path(__file__).parent / "static"
 if _STATIC_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="static")
+    app.mount("/", NoCacheStaticFiles(directory=str(_STATIC_DIR), html=True), name="static")

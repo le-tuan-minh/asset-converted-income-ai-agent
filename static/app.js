@@ -265,12 +265,19 @@ function handleServerResponse(data) {
     resultSection.classList.add("hidden");
     setStep(3); // OCR + gom nhóm AI xong, đang chờ CBTD xác nhận
   } else if (data.status === "done") {
-    $("startMsg").textContent = `✅ ${data.message}`;
-    $("startMsg").className = "msg ok";
+    // ★ FIX: hồ sơ có thể dừng ngay ở B1 (thiếu CCCD/GCN) — khi đó
+    // has_critical_flags=True nhưng asset_results rỗng. Trước đây luôn hiện
+    // "✅ ... msg ok" và nhảy thẳng lên bước 5, khiến cán bộ tín dụng tưởng
+    // đã xử lý xong trong khi thực chất hồ sơ bị từ chối ngay từ đầu.
+    const isCritical = !!data.has_critical_flags;
+    $("startMsg").textContent = isCritical
+      ? `⛔ ${data.message} — hồ sơ cần cán bộ tín dụng rà soát/bổ sung giấy tờ.`
+      : `✅ ${data.message}`;
+    $("startMsg").className = isCritical ? "msg error" : "msg ok";
     groupingSection.classList.add("hidden");
     renderResult(data);
     resultSection.classList.remove("hidden");
-    setStep(5); // Đã có kết quả thẩm định — bước cuối trong luồng hiện tại
+    setStep(isCritical ? 1 : 5); // dừng ở B1 thì không nhảy thẳng lên bước 5
   }
 }
 
@@ -657,18 +664,86 @@ function statusDotHtml(status) {
   return `<span class="status-dot ${cls}" title="${escapeHtml(label)}"></span>`;
 }
 
+// ============================================================
+// ★ FIX: hiển thị flag CẤP HỒ SƠ (vd OCR_THIEU_DU_LIEU khi thiếu CCCD/GCN
+// sinh ra ngay ở B1, trước khi có tài sản nào được tạo). Trước đây
+// renderResult() chỉ đọc data.asset_results — khi hồ sơ dừng ở B1,
+// asset_results rỗng nên cán bộ tín dụng chỉ thấy "0 tài sản, 0 lỗi, 0
+// cảnh báo" trống trơn, không hề biết lý do thực sự nằm trong data.flags.
+// ============================================================
+function renderDocumentLevelFlags(data) {
+  const box = $("resultDocFlags");
+  if (!box) return;
+
+  // GOM_NHOM_TAI_SAN_DA_CHINH_SUA: chỉ để lưu vết nội bộ, không cần hiển thị
+  // cảnh báo này cho cán bộ tín dụng (chính họ là người vừa chỉnh sửa).
+  const docFlags = (data.flags || []).filter((f) => f.flag_type !== "GOM_NHOM_TAI_SAN_DA_CHINH_SUA");
+  const nAssets = (data.asset_results || []).length;
+
+  // Không có flag cấp hồ sơ (trường hợp bình thường, đã qua B1 sạch) → ẩn
+  // box này, tránh trùng lặp với flags hiển thị riêng trong từng thẻ tài sản.
+  if (!docFlags.length) {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+
+  const nError = docFlags.filter((f) => f.severity === "ERROR").length;
+  const nWarning = docFlags.filter((f) => f.severity === "WARNING").length;
+
+  const flagsHtml = docFlags
+    .map((f) => `
+      <div class="flag-item ${f.severity}">
+        <span class="severity-chip ${f.severity === "ERROR" ? "sev-error" : "sev-warning"}">
+          ${f.severity === "ERROR" ? "⛔ Nghiêm trọng" : "⚠️ Cảnh báo"}
+        </span>
+        <span class="flag-type">[${escapeHtml(f.flag_type)}]</span>
+        <div>${escapeHtml(f.description || "")}</div>
+      </div>
+    `)
+    .join("");
+
+  const title = nAssets === 0
+    ? "⛔ Hồ sơ KHÔNG đủ điều kiện xử lý — cần bổ sung giấy tờ"
+    : "🚩 Cảnh báo ở cấp hồ sơ";
+
+  box.classList.remove("hidden");
+  box.className = "doc-level-flags" + (nError > 0 ? " has-error" : "");
+  box.innerHTML = `
+    <h3>${title}</h3>
+    <p class="hint">
+      ${nError} lỗi nghiêm trọng, ${nWarning} cảnh báo — hồ sơ đã dừng ngay ở bước kiểm tra
+      đầu vào (B1), chưa chạy B2/B2c/B3 do thiếu giấy tờ bắt buộc.
+    </p>
+    <div class="flag-list">${flagsHtml}</div>
+  `;
+}
+
 function renderResult(data) {
   const summary = $("resultSummary");
   const results = data.asset_results || [];
   const nAssets = results.length;
+
+  // ★ FIX: render flag cấp hồ sơ TRƯỚC — luôn gọi để box tự ẩn/hiện đúng
+  renderDocumentLevelFlags(data);
   const nErrorAssets = results.filter((r) => computeAssetStatus(r).status === "error").length;
   const nWarningAssets = results.filter((r) => computeAssetStatus(r).status === "warning").length;
+
+  // ★ FIX: khi hồ sơ dừng ở B1 (nAssets=0), không có tài sản nào để đếm lỗi/
+  // cảnh báo theo tài sản — hiện 2 pill "0 tài sản có lỗi/cảnh báo" màu xanh
+  // ở đây sẽ mâu thuẫn với box đỏ renderDocumentLevelFlags() ngay phía trên.
+  // Chỉ hiện 2 pill đó khi thực sự có tài sản được xử lý.
+  const assetStatPills = nAssets > 0 ? `
+    <span class="stat-pill">${nErrorAssets ? "🔴" : "🟢"} ${nErrorAssets} tài sản có lỗi nghiêm trọng</span>
+    <span class="stat-pill">🟡 ${nWarningAssets} tài sản có cảnh báo</span>
+  ` : `
+    <span class="stat-pill">${data.has_critical_flags ? "🔴" : "🟢"} ${data.has_critical_flags ? "Hồ sơ dừng ở B1" : "Không có cảnh báo"}</span>
+  `;
 
   summary.innerHTML = `
     <span class="stat-pill">📁 ${escapeHtml(data.session_id)}</span>
     <span class="stat-pill">🏠 ${nAssets} tài sản</span>
-    <span class="stat-pill">${nErrorAssets ? "🔴" : "🟢"} ${nErrorAssets} tài sản có lỗi nghiêm trọng</span>
-    <span class="stat-pill">🟡 ${nWarningAssets} tài sản có cảnh báo</span>
+    ${assetStatPills}
   `;
 
   const assetsEl = $("resultAssets");

@@ -220,6 +220,10 @@
     <h2>3. Kết quả thẩm định</h2>
     <div id="resultSummary" class="result-summary"></div>
 
+    <!-- ★ FIX: box hiển thị flag CẤP HỒ SƠ (vd thiếu CCCD/GCN sinh ở B1) —
+         ẩn mặc định, chỉ hiện khi data.flags có phần tử (xem renderDocumentLevelFlags trong app.js) -->
+    <div id="resultDocFlags" class="doc-level-flags hidden"></div>
+
     <!-- BR-20: tìm kiếm / lọc tài sản -->
     <div class="result-filter-bar" id="resultFilterBar">
       <input type="text" id="resultSearchInput" placeholder="🔍 Tìm theo tên chủ tài sản hoặc mã tài sản..." />

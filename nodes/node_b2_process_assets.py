@@ -74,7 +74,9 @@ async def _process_single_asset(group: AssetGroupCandidate, all_documents: list[
         asset_info, land_purpose, notes,
         rule_based_tmdv_signal=tmdv_signal["is_tmdv_signal"],
     )
-    flags, warnings, notes = flag_asset(owner_info, asset_info, identity_check, land_purpose, flags, warnings, notes)
+    identity_check, flags, warnings, notes = flag_asset(
+        owner_info, asset_info, identity_check, land_purpose, flags, warnings, notes
+    )
 
     has_critical = any(f.severity == "ERROR" for f in flags)
 
