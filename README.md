@@ -3,7 +3,7 @@
 Hệ thống AI thẩm định tài sản bảo đảm là bất động sản cho khách hàng cá nhân tại ngân hàng Việt Nam.
 
 (Quy trình thẩm định TSBĐ đầy đủ gồm nhiều bước, từ kiểm tra hồ sơ khách hàng và tài sản, xác định diện tích đủ điều kiện, kiểm tra CIC, tìm kiếm các tài sản tương đồng để đánh giá tính hợp lý của giá trị tài 
-sản
+sản.
 
 Hệ thống hiện tại trong project này thực hiện 3 bước là nhận hồ sơ, trích xuất, kiểm tra thông tin và flag cảnh báo)
 
@@ -207,7 +207,7 @@ Các bộ test hiện có trong `input_data/`:
 | ------------------------- | ----------------------------------------------------|
 | `test_input_1`            | Happy path                                          |
 | `test_diff_name`          | Hồ sơ có tên chủ sở hữu trong giấy tờ mua bán khác  |
-| `test_input_4`            | Đất TMDV nhưng có thuộc dự án (không cần Web Search)|
+| `test_tmdv_da`            | Đất TMDV nhưng có thuộc dự án (không cần Web Search)|
 | `test_input_missing_cccd` | Hồ sơ thiếu CCCD → Human Review                     |
 | `test_input_missing_gcn`  | Hồ sơ thiếu GCN → Human Review                      |
 | `test_input_multi_asset`  | Xử lý nhiều tài sản trong cùng hồ sơ                |
