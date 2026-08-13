@@ -1,7 +1,10 @@
 # Asset-converted Income AI Agent — B1 đến B3
 
 Hệ thống AI thẩm định tài sản bảo đảm là bất động sản cho khách hàng cá nhân tại ngân hàng Việt Nam.
-(Quy trình thẩm định TSBĐ đầy đủ gồm nhiều bước, từ kiểm tra hồ sơ khách hàng và tài sản, xác định diện tích đủ điều kiện, kiểm tra CIC, tìm kiếm các tài sản tương đồng để đánh giá tính hợp lý của giá trị tài sản
+
+(Quy trình thẩm định TSBĐ đầy đủ gồm nhiều bước, từ kiểm tra hồ sơ khách hàng và tài sản, xác định diện tích đủ điều kiện, kiểm tra CIC, tìm kiếm các tài sản tương đồng để đánh giá tính hợp lý của giá trị tài 
+sản
+
 Hệ thống hiện tại trong project này thực hiện 3 bước là nhận hồ sơ, trích xuất, kiểm tra thông tin và flag cảnh báo)
 
 ## Cấu trúc project
