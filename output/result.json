@@ -65,7 +65,7 @@
       },
       "asset_info": {
         "so_gcn": "ĐN 654321",
-        "chu_su_dung_goc": "Trần Đình Khoa, Lê Thị Mỹ Dung",
+        "chu_su_dung_goc": "Trần Đình Khoa và Lê Thị Mỹ Dung",
         "chu_su_dung_hien_tai": "Nguyễn Minh Tuấn",
         "bien_dong_lich_su": [
           {
@@ -86,22 +86,22 @@
         "dien_tich_nts": "",
         "dien_tich_tmdv": "154,1",
         "co_thong_tin_tang_cho": false,
-        "thuoc_du_an": null,
-        "ten_du_an": "",
+        "thuoc_du_an": true,
+        "ten_du_an": "Golden Hills City",
         "can_cu_phap_ly_du_an": "",
         "nguon_goc_tai_san": "Nhà nước giao đất có thu tiền sử dụng đất",
         "ben_mua_hop_dong": "Nguyễn Minh Tuấn",
         "ben_mua_so_cccd_hop_dong": "025090012345",
-        "ben_ban_hop_dong": "Trần Đình Khoa, Lê Thị Mỹ Dung"
+        "ben_ban_hop_dong": "Trần Đình Khoa và Lê Thị Mỹ Dung"
       },
       "identity_check": {
-        "owner_matched": false,
+        "owner_matched": true,
         "matched_against": "chu_hien_tai",
         "mismatch_fields": [],
         "is_tang_cho": false,
         "is_thua_ke": false,
         "asset_formation_date": "08/07/2024",
-        "asset_formation_note": "Xác định bởi rule-based (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024)).",
+        "asset_formation_note": "Xác định bởi rule-based (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024)). (LLM trước đó ghi: 10/03/2024)",
         "owner_name_similarity": 0.938
       },
       "land_purpose": {
@@ -110,31 +110,45 @@
         "dien_tich_dat_o_du_dieu_kien": "0",
         "dien_tich_nha_o_du_dieu_kien": "0",
         "is_tmdv": true,
-        "thuoc_du_an": null,
-        "ten_du_an": "",
+        "thuoc_du_an": true,
+        "ten_du_an": "Golden Hills City",
         "can_cu_phap_ly_du_an": "",
-        "nguon_xac_dinh_du_an": "chua_xac_dinh",
-        "web_verification_sources": [],
-        "web_verification_summary": "",
-        "warning_tmdv": "Đất thương mại, dịch vụ (mã TMD) nhưng chưa xác định được có thuộc dự án được phê duyệt hay không từ hồ sơ hiện có. Cần xác minh bổ sung."
+        "nguon_xac_dinh_du_an": "web_search",
+        "web_verification_sources": [
+          "https://lamthuymoc.com.vn/du-an/khu-do-thi-golden-hills-da-nang.html",
+          "https://toprealty.vn/du-an/khu-do-thi-golden-hills-da-nang",
+          "https://royaland.com.vn/du-an/du-an-golden-hills-da-nang.htm",
+          "https://batdongsan.com.vn/ban-dat-nen-du-an-golden-hills-city",
+          "https://www.facebook.com/tradacotden/posts/-golden-hills-t%E1%BB%89nh-gi%E1%BA%A5c-sau-h%C6%A1n-m%E1%BB%99t-th%E1%BA%ADp-k%E1%BB%B7-tr%C3%AC-tr%E1%BB%87-%C4%91%C3%A0-n%E1%BA%B5ng-b%E1%BA%AFt-%C4%91%E1%BA%A7u-x%C3%A1c-%C4%91%E1%BB%8Bnh-l%E1%BA%A1i/1155166699985414"
+        ],
+        "web_verification_summary": "Thông tin chỉ mang tính tham khảo từ nguồn thương mại, chưa có căn cứ pháp lý chính thức. Dự án Golden Hills City là một khu đô thị sinh thái tại xã Hòa Liên, huyện Hòa Vang, Thành phố Đà Nẵng, với vị trí đắc địa và quy hoạch hiện đại.",
+        "warning_tmdv": ""
       },
       "flags": [
         {
           "flag_type": "TMDV_CAN_XAC_MINH_THU_CONG",
           "severity": "WARNING",
-          "description": "Đất TMDV chưa xác định được có thuộc dự án được phê duyệt hay không, kể cả sau khi đã tra cứu web bổ sung (nếu có). Cần cán bộ tín dụng xác minh thủ công.",
+          "description": "LLM kết luận 'thuộc dự án' chỉ dựa vào tên gọi trong địa chỉ tài sản (vd tên khu đô thị/dự án xuất hiện trong địa chỉ), KHÔNG có căn cứ pháp lý cụ thể (số quyết định phê duyệt chủ trương đầu tư / giấy chứng nhận đầu tư) trong hồ sơ. Đã hạ về 'chưa xác định' để bắt buộc xác minh bổ sung.",
           "affected_field": "land_purpose.thuoc_du_an"
+        },
+        {
+          "flag_type": "TMDV_DU_AN_XAC_MINH_WEB",
+          "severity": "WARNING",
+          "description": "Đất TMDV được xác định 'thuộc dự án' qua tra cứu web bổ sung, nhưng KHÔNG tìm được số quyết định/căn cứ pháp lý chính thức (chỉ có mô tả marketing/tham khảo từ nguồn thương mại). Cần cán bộ tín dụng xác minh thủ công trước khi kết luận.",
+          "affected_field": "land_purpose.can_cu_phap_ly_du_an"
         }
       ],
       "warnings": [
-        "⚠️ ĐẤT TMDV: Chưa xác định được có thuộc dự án không. Cần kiểm tra thêm."
+        "⚠️ ĐẤT TMDV: Web search kết luận thuộc dự án nhưng chưa có căn cứ pháp lý chính thức — cần xác minh thủ công."
       ],
       "has_critical_flags": false,
       "processing_notes": [
+        "[B2a] Downgrade: thuoc_du_an True→None vì thiếu căn cứ pháp lý cụ thể (chỉ dựa vào tên gọi trong địa chỉ, chưa đủ để khẳng định thuộc dự án).",
         "[B2a] Diện tích đủ điều kiện quy đổi (tính tất định, KHÔNG cộng gộp): đất ở = 0 m², nhà ở = 0 m².",
         "B2a hoàn thành: LLM extract thành công.",
-        "[B2b] Web search không tìm được căn cứ đủ tin cậy — giữ thuoc_du_an=null.",
-        "[B3] Ngày hình thành tài sản xác định = 08/07/2024 (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024))."
+        "[B2b] Web search kết luận thuoc_du_an=True.",
+        "[B3] Ngày hình thành tài sản xác định = 08/07/2024 (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024)).",
+        "[B3] Lưu ý: LLM tự ghi asset_formation_date='10/03/2024' khác với ngày rule-based tính được (08/07/2024). Ưu tiên dùng kết quả rule-based (nguồn: bien_dong_lich_su (khớp chu_moi='Nguyễn Minh Tuấn', ngày=08/07/2024))."
       ],
       "error": null
     }
@@ -146,7 +160,7 @@
     "B1 hoàn thành: 3 file, phát hiện 1 GCN.",
     "[B1b] Chỉ 1 tài sản được phát hiện — bỏ qua bước gọi LLM gom nhóm.",
     "[B1c] Cán bộ tín dụng đã XÁC NHẬN nhóm tài sản do AI đề xuất, không chỉnh sửa.",
-    "[B2-B3] Tài sản 'asset_1' xử lý xong — 1 flag(s), has_critical_flags=False."
+    "[B2-B3] Tài sản 'asset_1' xử lý xong — 2 flag(s), has_critical_flags=False."
   ],
   "error": null
 }

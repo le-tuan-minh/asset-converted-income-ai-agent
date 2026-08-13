@@ -78,6 +78,3 @@ Mở trình duyệt: **http://localhost:8000/**
   checkpointer sang SQLite/Postgres và session store ra Redis.
 - Endpoint `GET /api/session/{id}/file?filename=...` phục vụ đúng file gốc
   (ảnh/PDF) từ đường dẫn đã OCR ở B1a để frontend hiển thị trong modal.
-- Không đổi bất kỳ logic nghiệp vụ nào trong `nodes/`, `graph.py`,
-  `schemas.py` — chỉ thêm lớp API/giao diện mới, có thể chạy song song với
-  `app.py` (Gradio) cũ nếu muốn giữ lại.
