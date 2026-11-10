@@ -1,5 +1,15 @@
 # Asset-converted Income AI Agent — B1 to B3
 
+## Project Overview
+
+An AI system for assessing real-estate collateral for individual customers at banks in Vietnam.
+
+(A complete collateral assessment process includes multiple steps, from checking customer and asset documents, determining eligible areas, and checking CIC, to searching for comparable properties to assess whether the asset value is reasonable.
+
+The system in this project currently implements three stages: document intake, information extraction and verification, and warning flagging.)
+
+---
+
 ## User Guide
 
 ### 1. Enter the document folder path
@@ -26,14 +36,6 @@ The agent performs OCR and document classification, then groups documents belong
 After the grouping is confirmed, the agent checks the information and generates warnings for each asset. Review the extracted information and warnings displayed for each asset.
 
 ---
-
-## Project Overview
-
-An AI system for assessing real-estate collateral for individual customers at banks in Vietnam.
-
-(A complete collateral assessment process includes multiple steps, from checking customer and asset documents, determining eligible areas, and checking CIC, to searching for comparable properties to assess whether the asset value is reasonable.
-
-The system in this project currently implements three stages: document intake, information extraction and verification, and warning flagging.)
 
 ## Project Structure
 
